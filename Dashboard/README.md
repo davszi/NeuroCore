@@ -27,7 +27,7 @@ Follow these instructions to get the project running on your local machine.
 
 1.  **Clone the repository:**
     ```bash
-    git clone <your-repo-url>
+    git clone https://github.com/davszi/NeuroCore.git
     ```
 
 2.  **Navigate to the project directory:**
