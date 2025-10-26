@@ -1,5 +1,0 @@
-- a single YAML file describing all simulated nodes so discovery and monitoring tools can enumerate them automatically.
-- Use schema identifier nodes/v1.
-- For each node include: name, host, port, user, gpu_count.
-- Values must correspond exactly to the Compose topology (ports 2221–2223, user cluster, host localhost).
-- File path: config/nodes.yaml.
