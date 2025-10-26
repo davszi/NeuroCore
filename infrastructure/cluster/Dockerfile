@@ -35,11 +35,19 @@ RUN sed -ri 's/^#?PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config \
  && sed -ri 's/^#?PasswordAuthentication .*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
  && sed -ri 's/^#?PubkeyAuthentication .*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
 
-# 7) Set the default working directory for the container
+
+# This step was added after reviewing the acceptance requirments to add the 3 required directories for NeuroCore
+# 7) Create required NeuroCore directories and grant cluster ownership
+RUN mkdir -p /opt/neurocore /neurocore/data /neurocore/logs \
+ && chown -R cluster:cluster /opt/neurocore /neurocore \
+ && chmod -R 775 /opt/neurocore /neurocore
+
+
+ # 8) Set the default working directory for the container
 WORKDIR /workspace
 
-# 8) Expose the SSH port (will be mapped in docker-compose later)
+# 9) Expose the SSH port (will be mapped in docker-compose later)
 EXPOSE 22
 
-# 9) Keep the container running by launching sshd in the foreground
+# 10) Keep the container running by launching sshd in the foreground
 CMD ["/usr/sbin/sshd", "-D"]

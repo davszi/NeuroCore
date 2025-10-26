@@ -1,5 +1,12 @@
 version: "3.9"
 
+x-healthcheck: &default-healthcheck
+  test: ["CMD-SHELL", "pgrep -f sshd >/dev/null && tmux -V >/dev/null"]
+  interval: 10s
+  timeout: 3s
+  retries: 5
+  start_period: 5s
+
 services:
   node1:
     image: genai-node:latest
@@ -9,6 +16,10 @@ services:
       - "2221:22"            # host:container (SSH)
     networks:
       - cluster-net
+    volumes:
+      - ../data:/neurocore/data
+      - ../logs:/neurocore/logs
+    healthcheck: *default-healthcheck
     restart: unless-stopped
 
   node2:
@@ -19,6 +30,10 @@ services:
       - "2222:22"
     networks:
       - cluster-net
+    volumes:
+      - ../data:/neurocore/data
+      - ../logs:/neurocore/logs
+    healthcheck: *default-healthcheck
     restart: unless-stopped
 
   node3:
@@ -29,6 +44,10 @@ services:
       - "2223:22"
     networks:
       - cluster-net
+    volumes:
+      - ../data:/neurocore/data
+      - ../logs:/neurocore/logs
+    healthcheck: *default-healthcheck
     restart: unless-stopped
 
 networks:
