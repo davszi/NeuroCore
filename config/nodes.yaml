@@ -1,0 +1,17 @@
+schema: nodes/v1
+nodes:
+  - name: node1
+    host: localhost
+    port: 2221
+    user: cluster
+    gpu_count: 2
+  - name: node2
+    host: localhost
+    port: 2222
+    user: cluster
+    gpu_count: 1
+  - name: node3
+    host: localhost
+    port: 2223
+    user: cluster
+    gpu_count: 1
