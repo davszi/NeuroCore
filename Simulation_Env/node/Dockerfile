@@ -24,7 +24,7 @@ COPY fake-nvidia-smi.sh /opt/neurocore/fake-nvidia-smi.sh
 RUN chmod +x /opt/neurocore/*.sh /opt/neurocore/*.py
 
 # Create the data output directory
-RUN mkdir -p /data_out/logs && chown cluster:cluster /data_out
+RUN mkdir -p /data_out/logs && chown -R cluster:cluster /data_out
 
 # Expose SSH port
 EXPOSE 22
