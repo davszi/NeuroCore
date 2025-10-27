@@ -21,10 +21,13 @@ rand() { # $1=min $2=max $3=offset
 
 for i in $(seq 0 $((FAKE_GPU_COUNT-1))); do
   util=$(rand 5 95 $i)
-  # shellcheck disable=SC1073
-  # shellcheck disable=SC1072
-  memtot=$(( (rand 4096 24576 $((i+100))) / 256 * 256 ))   # round to 256MiB
-  memuse=$(( (util * memtot) / (100 + rand 0 20 $((i+200))) ))
+
+  memtot=$(rand 4096 24576 $((i+100)))
+  memtot=$(( (memtot / 256) * 256 ))   # round to 256MiB
+
+  jitter=$(rand 0 20 $((i+200)))
+  memuse=$(( (util * memtot) / (100 + jitter) ))
+
   temp=$(rand 35 80 $((i+300)))
   power=$(rand 50 250 $((i+400)))
   echo "${util}, ${memuse}, ${memtot}, ${temp}, ${power}"
