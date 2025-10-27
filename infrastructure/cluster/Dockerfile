@@ -46,8 +46,14 @@ RUN mkdir -p /opt/neurocore /neurocore/data /neurocore/logs \
  # 8) Set the default working directory for the container
 WORKDIR /workspace
 
-# 9) Expose the SSH port (will be mapped in docker-compose later)
+# 9) Add fake nvidia-smi and expose it on PATH
+COPY fake-nvidia-smi.sh /opt/neurocore/fake-nvidia-smi.sh
+RUN chmod +x /opt/neurocore/fake-nvidia-smi.sh \
+    && ln -sf /opt/neurocore/fake-nvidia-smi.sh /usr/local/bin/nvidia-smi
+
+
+# 10) Expose the SSH port (will be mapped in docker-compose later)
 EXPOSE 22
 
-# 10) Keep the container running by launching sshd in the foreground
+# 11) Keep the container running by launching sshd in the foreground
 CMD ["/usr/sbin/sshd", "-D"]
