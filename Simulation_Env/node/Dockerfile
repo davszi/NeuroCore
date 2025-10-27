@@ -29,5 +29,5 @@ RUN mkdir -p /data_out/logs && chown cluster:cluster /data_out
 # Expose SSH port
 EXPOSE 22
 
-# Start SSH and seed the jobs
-CMD /opt/neurocore/seed-jobs.sh && /usr/sbin/sshd -D
+# This runs the seeder as the 'cluster' user, then starts SSH
+CMD su - cluster -c "/opt/neurocore/seed-jobs.sh" && exec /usr/sbin/sshd -D
