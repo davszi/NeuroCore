@@ -76,7 +76,7 @@ export default function JobTable() {
           <tbody className="bg-gray-900 divide-y divide-gray-800">
             {jobs.map((job) => (
               <tr 
-                key={job.session} 
+                key={`${job.node}-${job.session}`}
                 className="hover:bg-gray-800 transition-colors duration-150"
               >
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">

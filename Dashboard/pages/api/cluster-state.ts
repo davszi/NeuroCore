@@ -44,7 +44,7 @@ function readJsonlFile(filePath: string): any[] {
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   // Path to the shared data directory
-  const dataDir = path.join(process.cwd(), '../../Simulation_Env/data-exchange');
+  const dataDir = path.join(process.cwd(), '../Simulation_Env/data-exchange');
   const metricsPath = path.join(dataDir, 'metrics.jsonl');
   
   // Read the data from the simulation

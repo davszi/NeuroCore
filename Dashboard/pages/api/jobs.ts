@@ -12,7 +12,7 @@ function readJsonlFile(filePath: string): any[] {
 }
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  const dataDir = path.join(process.cwd(), '../../Simulation_Env/data-exchange');
+  const dataDir = path.join(process.cwd(), '../Simulation_Env/data-exchange');
   const jobsPath = path.join(dataDir, 'jobs.jsonl');
   
   const jobs = readJsonlFile(jobsPath);
