@@ -24,12 +24,12 @@ make_session () {
   fi
 
   echo "[+] creating session: $sess"
-  # This is the command we will search for with pgrep
-  local cmd_base="python3 -u /opt/neurocore/dummy_train.py --owner=$owner --project=$project --mode=$mode"
+  # This is the command with SPACES
+  local cmd_base="python3 -u /opt/neurocore/dummy_train.py --owner $owner --project $project --mode $mode"
   # Log to the shared volume
   local cmd_with_log="$cmd_base | tee -a $LOG_DIR/${sess//:/_}.log"
 
-  # Use default tmux socket. The -c flag ensures the command runs in the home dir.
+  # Use default tmux socket
   "$TMUX_BIN" new-session -d -s "$sess" "$cmd_with_log"
 }
 

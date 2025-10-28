@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import subprocess, json, sys, os, shlex, re
+import subprocess, json, sys, os, shlex
 
 NODES = [
     {"name": "node1", "port": "22"},
@@ -46,27 +46,40 @@ for node in NODES:
             if not pid_str.isdigit():
                 continue
                 
-            # --- THIS IS THE FIX ---
-            # Ignore the 'bash -c' parent process and only parse the real python command
+            # Ignore the 'bash -c' parent process
             if not full_cmd.strip().startswith("python3"):
                 continue
-            # --- END OF FIX ---
                 
             pid = int(pid_str)
             
-            # 2. Parse arguments from the command line string
+            # --- THIS IS THE STABLE PARSER for space-separated args ---
             try:
                 # Find the part of the command we care about
-                py_cmd_args = full_cmd.split("dummy_train.py", 1)[1]
-                # Use shlex to parse args like a shell
-                args = shlex.split(py_cmd_args)
+                py_cmd_args_str = full_cmd.split("dummy_train.py", 1)[1]
+                # Use shlex to parse args like a shell (handles spaces)
+                args_list = shlex.split(py_cmd_args_str)
                 
-                owner = args[args.index('--owner') + 1]
-                project = args[args.index('--project') + 1]
-                mode = args[args.index('--mode') + 1]
+                # Create a simple dictionary from the list
+                args_map = {}
+                for i, arg in enumerate(args_list):
+                    if arg == '--owner' and i + 1 < len(args_list):
+                        args_map['owner'] = args_list[i+1]
+                    elif arg == '--project' and i + 1 < len(args_list):
+                        args_map['project'] = args_list[i+1]
+                    elif arg == '--mode' and i + 1 < len(args_list):
+                        args_map['mode'] = args_list[i+1]
+                
+                owner = args_map.get('owner')
+                project = args_map.get('project')
+                mode = args_map.get('mode')
+
+                if not owner or not project or not mode:
+                    raise ValueError(f"Missing one or more required arguments in {args_list}")
+
             except Exception as e:
                 print(f"Failed to parse cmd: '{full_cmd}' on {node_name}. Error: {e}", file=sys.stderr)
                 continue
+            # --- END OF PARSER ---
 
             # 3. Get Uptime
             uptime_cmd = ssh_cmd_base + [f"ps -p {pid} -o etime="]
@@ -76,7 +89,7 @@ for node in NODES:
             # Reconstruct the session name for consistency
             session_name = f"train:{owner}:{project}:{mode}"
 
-            # 4. Get Log Preview (this logic is unchanged and correct)
+            # 4. Get Log Preview
             log_file = f"/data_out/logs/{session_name.replace(':','_')}.log"
             log_cmd = ssh_cmd_base + [f"tail -n 5 {log_file} 2>/dev/null || true"]
             log_result = subprocess.run(log_cmd, capture_output=True, text=True, timeout=5)
@@ -97,7 +110,6 @@ try:
     with open(OUTPUT_FILE, "w") as f:
         for rec in records:
             f.write(json.dumps(rec) + "\n")
-    # This log will now be accurate
     print(f"Successfully wrote {len(records)} jobs to {OUTPUT_FILE}")
 except Exception as e:
     print(f"Error writing to {OUTPUT_FILE}: {e}", file=sys.stderr)
