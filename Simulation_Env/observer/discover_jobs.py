@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import subprocess, json, sys, os, re # <-- Import re for regex
+import subprocess, json, sys, os, shlex, re
 
 NODES = [
     {"name": "node1", "port": "22"},
@@ -46,29 +46,27 @@ for node in NODES:
             if not pid_str.isdigit():
                 continue
                 
-            # Ignore the 'bash -c' parent process
+            # --- THIS IS THE FIX ---
+            # Ignore the 'bash -c' parent process and only parse the real python command
             if not full_cmd.strip().startswith("python3"):
                 continue
+            # --- END OF FIX ---
                 
             pid = int(pid_str)
             
-            # --- THIS IS THE NEW, STABLE FIX ---
-            # 2. Parse arguments using regex
+            # 2. Parse arguments from the command line string
             try:
-                # Find all --key=value pairs
-                args_map = dict(re.findall(r'--(\w+)=([\w-]+)', full_cmd))
+                # Find the part of the command we care about
+                py_cmd_args = full_cmd.split("dummy_train.py", 1)[1]
+                # Use shlex to parse args like a shell
+                args = shlex.split(py_cmd_args)
                 
-                owner = args_map.get('owner')
-                project = args_map.get('project')
-                mode = args_map.get('mode')
-
-                if not owner or not project or not mode:
-                    raise ValueError("Missing one or more required arguments")
-
+                owner = args[args.index('--owner') + 1]
+                project = args[args.index('--project') + 1]
+                mode = args[args.index('--mode') + 1]
             except Exception as e:
                 print(f"Failed to parse cmd: '{full_cmd}' on {node_name}. Error: {e}", file=sys.stderr)
                 continue
-            # --- END OF FIX ---
 
             # 3. Get Uptime
             uptime_cmd = ssh_cmd_base + [f"ps -p {pid} -o etime="]
@@ -78,7 +76,7 @@ for node in NODES:
             # Reconstruct the session name for consistency
             session_name = f"train:{owner}:{project}:{mode}"
 
-            # 4. Get Log Preview
+            # 4. Get Log Preview (this logic is unchanged and correct)
             log_file = f"/data_out/logs/{session_name.replace(':','_')}.log"
             log_cmd = ssh_cmd_base + [f"tail -n 5 {log_file} 2>/dev/null || true"]
             log_result = subprocess.run(log_cmd, capture_output=True, text=True, timeout=5)
@@ -99,6 +97,7 @@ try:
     with open(OUTPUT_FILE, "w") as f:
         for rec in records:
             f.write(json.dumps(rec) + "\n")
+    # This log will now be accurate
     print(f"Successfully wrote {len(records)} jobs to {OUTPUT_FILE}")
 except Exception as e:
     print(f"Error writing to {OUTPUT_FILE}: {e}", file=sys.stderr)
