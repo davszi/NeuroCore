@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import subprocess, json, sys, os
+import subprocess, json, sys, os, re # <-- Import re for regex
 
 NODES = [
     {"name": "node1", "port": "22"},
@@ -8,9 +8,6 @@ NODES = [
 OUTPUT_FILE = "/data_out/jobs.jsonl"
 SSH_USER = "cluster"
 SSH_PASS = "cluster"
-
-# --- FIX: Point to the exact same shared socket path ---
-TMUX_SOCKET = "/data_out/tmux.socket"
 
 records = []
 for node in NODES:
@@ -23,51 +20,81 @@ for node in NODES:
             f"{SSH_USER}@{node_name}",
         ]
         
-        # --- FIX: Use the shared socket in all tmux commands ---
-        tmux_base_cmd = f"tmux -S {TMUX_SOCKET}"
-
-        # 1. List tmux sessions
-        tmux_cmd = ssh_cmd_base + [f"{tmux_base_cmd} ls -F '#{{session_name}}' 2>/dev/null || true"]
-        result = subprocess.run(tmux_cmd, capture_output=True, text=True, timeout=10)
+        # Find all 'dummy_train.py' processes for this user
+        search_cmd = "pgrep -af 'python3 -u /opt/neurocore/dummy_train.py'"
         
-        if result.returncode != 0:
-            print(f"Error connecting to {node_name}: {result.stderr}", file=sys.stderr)
+        find_cmd = ssh_cmd_base + [search_cmd]
+        result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=10)
+
+        if result.returncode == 1:
+            print(f"No processes found on {node_name}.")
             continue
-
+        elif result.returncode != 0:
+            print(f"Error finding processes on {node_name}: {result.stderr}", file=sys.stderr)
+            continue
+            
+        # Process the output of pgrep
         for line in result.stdout.splitlines():
-            if line.startswith("train:"):
-                session_name = line.strip()
+            if not line:
+                continue
                 
-                # 2. Get PID
-                pid_cmd = ssh_cmd_base + [f"{tmux_base_cmd} display-message -p -t {session_name} '#{{pane_pid}}'"]
-                pid_result = subprocess.run(pid_cmd, capture_output=True, text=True, timeout=5)
+            parts = line.split(' ', 1) # Splits into 'PID' and 'COMMAND'
+            if len(parts) < 2:
+                continue
                 
-                if not pid_result.stdout.strip().isdigit():
-                    print(f"Warning: Could not get PID for {session_name} on {node_name}. Session might be starting.", file=sys.stderr)
-                    continue
-                pid = int(pid_result.stdout.strip())
+            pid_str, full_cmd = parts
+            if not pid_str.isdigit():
+                continue
                 
-                # 3. Get Uptime
-                uptime_cmd = ssh_cmd_base + [f"ps -p {pid} -o etime="]
-                uptime_result = subprocess.run(uptime_cmd, capture_output=True, text=True, timeout=5)
-                uptime = uptime_result.stdout.strip()
+            # Ignore the 'bash -c' parent process
+            if not full_cmd.strip().startswith("python3"):
+                continue
+                
+            pid = int(pid_str)
+            
+            # --- THIS IS THE NEW, STABLE FIX ---
+            # 2. Parse arguments using regex
+            try:
+                # Find all --key=value pairs
+                args_map = dict(re.findall(r'--(\w+)=([\w-]+)', full_cmd))
+                
+                owner = args_map.get('owner')
+                project = args_map.get('project')
+                mode = args_map.get('mode')
 
-                # 4. Get Log Preview
-                log_file = f"/data_out/logs/{session_name.replace(':','_')}.log"
-                log_cmd = ssh_cmd_base + [f"tail -n 5 {log_file} 2>/dev/null || true"]
-                log_result = subprocess.run(log_cmd, capture_output=True, text=True, timeout=5)
+                if not owner or not project or not mode:
+                    raise ValueError("Missing one or more required arguments")
 
-                records.append({
-                    "node": node_name,
-                    "session": session_name,
-                    "pid": pid,
-                    "uptime": uptime,
-                    "log_preview": log_result.stdout.splitlines()
-                })
+            except Exception as e:
+                print(f"Failed to parse cmd: '{full_cmd}' on {node_name}. Error: {e}", file=sys.stderr)
+                continue
+            # --- END OF FIX ---
+
+            # 3. Get Uptime
+            uptime_cmd = ssh_cmd_base + [f"ps -p {pid} -o etime="]
+            uptime_result = subprocess.run(uptime_cmd, capture_output=True, text=True, timeout=5)
+            uptime = uptime_result.stdout.strip()
+            
+            # Reconstruct the session name for consistency
+            session_name = f"train:{owner}:{project}:{mode}"
+
+            # 4. Get Log Preview
+            log_file = f"/data_out/logs/{session_name.replace(':','_')}.log"
+            log_cmd = ssh_cmd_base + [f"tail -n 5 {log_file} 2>/dev/null || true"]
+            log_result = subprocess.run(log_cmd, capture_output=True, text=True, timeout=5)
+
+            records.append({
+                "node": node_name,
+                "session": session_name,
+                "pid": pid,
+                "uptime": uptime,
+                "log_preview": log_result.stdout.splitlines()
+            })
 
     except Exception as e:
         print(f"Failed to process {node_name}: {e}", file=sys.stderr)
 
+# 4. Write output file
 try:
     with open(OUTPUT_FILE, "w") as f:
         for rec in records:
