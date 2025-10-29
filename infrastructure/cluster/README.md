@@ -29,7 +29,7 @@ docker compose up -d
 ## Testing
 ### To access the node remotely using SSH
 ```bash
-ssh cluster@localhost -p 2221 T
+ssh cluster@localhost -p 2221
 ```
 ### To check the Shell script
 - nvidia-smi –query gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw - format=csv,noheader,nounits
