@@ -37,4 +37,16 @@ ssh cluster@localhost -p 2221
 - Execute the following command then within 5 minutes execute one more time to get the same result. Then execute it one more time to get different results
 ```bash
 nvidia-smi –query gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw - format=csv,noheader,nounits
+
 ```
+
+## Test node1
+<img width="1236" height="551" alt="image" src="https://github.com/user-attachments/assets/5bc880c3-9e86-4d28-a1b8-bb805275f0ee" />
+
+## Test node2
+<img width="1275" height="562" alt="image" src="https://github.com/user-attachments/assets/a7c4f900-4cc2-4aa4-bebe-0e927a11ede3" />
+
+## Test node3
+<img width="1272" height="548" alt="image" src="https://github.com/user-attachments/assets/ee2c967c-de36-40a7-9929-336683bb1ca4" />
+
+
