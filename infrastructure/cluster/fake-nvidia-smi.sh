@@ -27,7 +27,7 @@ rand() { # $1=min $2=max $3=offset
   echo $(( min + (val % (max - min + 1)) ))
 }
 
-#echo "DEBUG: FAKE_GPU_COUNT is set to: ${FAKE_GPU_COUNT}" >&2
+
 # Loop through the number of GPUs specified by FAKE_GPU_COUNT
 for i in $(seq 0 $((FAKE_GPU_COUNT-1))); do
   # Generate random values within specified bounds using the rand function and GPU index as offset
