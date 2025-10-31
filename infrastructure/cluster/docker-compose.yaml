@@ -59,6 +59,26 @@ services:
     healthcheck: *default-healthcheck
     restart: unless-stopped
 
+  # The "Observer" service that polls the nodes
+  observer:
+    build: ./observer # We will create this Dockerfile next
+    # This observer needs to be on the same network to find 'node1'
+    # and needs access to the data to write files
+    volumes:
+      - ./data-exchange:/data_out
+    # This command runs our polling scripts in a loop
+    command: >
+      bash -c "while true; do
+        python3 /opt/neurocore/discover_jobs.py &&
+        python3 /opt/neurocore/poll_metrics.py;
+        echo 'Observer polled, sleeping 5...';
+        sleep 5;
+      done"
+    depends_on:
+      - node1
+      - node2
+
+volumes:
 networks:
   cluster-net:
     external: true           # reuse the existing Docker network

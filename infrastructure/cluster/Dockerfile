@@ -48,8 +48,10 @@ WORKDIR /workspace
 
 # 9) Add fake nvidia-smi and expose it on PATH
 COPY fake-nvidia-smi.sh /opt/neurocore/fake-nvidia-smi.sh
-RUN chmod +x /opt/neurocore/fake-nvidia-smi.sh \
-    && ln -sf /opt/neurocore/fake-nvidia-smi.sh /usr/local/bin/nvidia-smi
+COPY dummy_train.py /opt/neurocore/dummy_train.py
+COPY seed-jobs.sh /opt/neurocore/seed-jobs.sh
+RUN chmod +x /opt/neurocore/*.sh /opt/neurocore/*.py
+RUN ln -sf /opt/neurocore/fake-nvidia-smi.sh /usr/local/bin/nvidia-smi
 
 
 # 10) Expose the SSH port (will be mapped in docker-compose later)
