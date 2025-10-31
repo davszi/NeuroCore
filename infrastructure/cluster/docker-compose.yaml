@@ -14,6 +14,9 @@ services:
     hostname: node1
     ports:
       - "2221:22"            # host:container (SSH)
+    environment:
+      - FAKE_GPU_COUNT=2   
+      - FAKE_SEED=42 
     networks:
       - cluster-net
     volumes:
@@ -21,6 +24,9 @@ services:
       - ../logs:/neurocore/logs
     healthcheck: *default-healthcheck
     restart: unless-stopped
+    environment:
+      - FAKE_GPU_COUNT=2
+      - FAKE_SEED=42
 
   node2:
     image: genai-node:latest
@@ -28,6 +34,9 @@ services:
     hostname: node2
     ports:
       - "2222:22"
+    environment:
+      - FAKE_GPU_COUNT=1
+      - FAKE_SEED=42
     networks:
       - cluster-net
     volumes:
@@ -35,6 +44,9 @@ services:
       - ../logs:/neurocore/logs
     healthcheck: *default-healthcheck
     restart: unless-stopped
+    environment:
+      - FAKE_GPU_COUNT=1
+      - FAKE_SEED=42
 
   node3:
     image: genai-node:latest
@@ -42,6 +54,9 @@ services:
     hostname: node3
     ports:
       - "2223:22"
+    environment:
+      - FAKE_GPU_COUNT=1
+      - FAKE_SEED=42
     networks:
       - cluster-net
     volumes:
@@ -49,7 +64,31 @@ services:
       - ../logs:/neurocore/logs
     healthcheck: *default-healthcheck
     restart: unless-stopped
+    environment:
+      - FAKE_GPU_COUNT=1
+      - FAKE_SEED=42
 
+  # The "Observer" service that polls the nodes
+  observer:
+    build: ./observer # We will create this Dockerfile next
+    # This observer needs to be on the same network to find 'node1'
+    # and needs access to the data to write files
+    volumes:
+      - ../data:/neurocore/data
+      - ../logs:/neurocore/logs
+    # This command runs our polling scripts in a loop
+    command: >
+      bash -c "while true; do
+        python3 /opt/neurocore/discover_jobs.py &&
+        python3 /opt/neurocore/poll_metrics.py;
+        echo 'Observer polled, sleeping 5...';
+        sleep 5;
+      done"
+    depends_on:
+      - node1
+      - node2
+
+  # The "Observer" service that polls the nodes
 networks:
   cluster-net:
     external: true           # reuse the existing Docker network
