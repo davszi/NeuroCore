@@ -4,6 +4,9 @@ FROM python:3.10-slim
 RUN apt-get update && apt-get install -y sshpass \
     && rm -rf /var/lib/apt/lists/*
 
+# Create the 'cluster' user (same name as nodes) ================> added NEW
+RUN useradd -ms /bin/bash cluster && echo 'cluster:cluster' | chpasswd
+
 RUN mkdir -p /opt/neurocore /neurocore/data /neurocore/logs \
  && chown -R cluster:cluster /opt/neurocore /neurocore \
  && chmod -R 775 /opt/neurocore /neurocore
