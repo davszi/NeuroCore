@@ -16,7 +16,8 @@ services:
       - "2221:22"            # host:container (SSH)
     environment:
       - FAKE_GPU_COUNT=2   
-      - FAKE_SEED=42 
+      - FAKE_SEED=42
+      - FAKE_GPU_MEM_TOTAL=16384  # 16 GB per GPU - Fixed value for memory.total 
     networks:
       - cluster-net
     volumes:
@@ -24,9 +25,9 @@ services:
       - ../logs:/neurocore/logs
     healthcheck: *default-healthcheck
     restart: unless-stopped
-    environment:
-      - FAKE_GPU_COUNT=2
-      - FAKE_SEED=42
+    #environment: # it was duplicated, so commented out
+      #- FAKE_GPU_COUNT=2
+      #- FAKE_SEED=42
 
   node2:
     image: genai-node:latest
@@ -37,6 +38,7 @@ services:
     environment:
       - FAKE_GPU_COUNT=1
       - FAKE_SEED=42
+      - FAKE_GPU_MEM_TOTAL=12288  # 12 GB per GPU - Fixed value for memory.total
     networks:
       - cluster-net
     volumes:
@@ -44,9 +46,9 @@ services:
       - ../logs:/neurocore/logs
     healthcheck: *default-healthcheck
     restart: unless-stopped
-    environment:
-      - FAKE_GPU_COUNT=1
-      - FAKE_SEED=42
+    #environment: # it was duplicated, so commented out
+      #- FAKE_GPU_COUNT=1
+      #- FAKE_SEED=42
 
   node3:
     image: genai-node:latest
@@ -57,6 +59,7 @@ services:
     environment:
       - FAKE_GPU_COUNT=1
       - FAKE_SEED=42
+      - FAKE_GPU_MEM_TOTAL=8192   # 8 GB per GPU - Fixed value for memory.total
     networks:
       - cluster-net
     volumes:
@@ -64,15 +67,17 @@ services:
       - ../logs:/neurocore/logs
     healthcheck: *default-healthcheck
     restart: unless-stopped
-    environment:
-      - FAKE_GPU_COUNT=1
-      - FAKE_SEED=42
+    #environment: # it was duplicated, so commented out
+      #- FAKE_GPU_COUNT=1
+      #- FAKE_SEED=42
 
   # The "Observer" service that polls the nodes
   observer:
     build: ./observer # We will create this Dockerfile next
     # This observer needs to be on the same network to find 'node1'
     # and needs access to the data to write files
+    networks:
+      - cluster-net # added NEW to use the existing network & not creatting a deafult network when building observer
     volumes:
       - ../data:/neurocore/data
       - ../logs:/neurocore/logs
@@ -87,6 +92,8 @@ services:
     depends_on:
       - node1
       - node2
+      - node3 # Added NEW
+    restart: unless-stopped # Added NEW
 
   # The "Observer" service that polls the nodes
 networks:
