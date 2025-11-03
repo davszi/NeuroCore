@@ -34,8 +34,29 @@ for i in $(seq 0 $((FAKE_GPU_COUNT-1))); do
   util=$(rand 5 95 $i)
 
   # Call rand first to get the random total memory, then round to nearest 256 MiB
-  memtot_rand_val=$(rand 4096 24576 $((i+100)))
-  memtot=$(( (memtot_rand_val / 256) * 256 ))
+  #memtot_rand_val=$(rand 4096 24576 $((i+100)))
+  #memtot=$(( (memtot_rand_val / 256) * 256 ))
+
+  # Recover FAKE_GPU_MEM_TOTAL from PID 1 (Docker env) if SSH session dropped it
+  #if [ -z "${FAKE_GPU_MEM_TOTAL}" ] && [ -r /proc/1/environ ]; then
+  #FAKE_GPU_MEM_TOTAL="$(tr '\0' '\n' </proc/1/environ | tr -d '\r' | awk -F= '/^FAKE_GPU_MEM_TOTAL=/{print $2; exit}')"
+  #fi
+
+  # Fallback if not numeric or empty
+  #if ! [[ "$FAKE_GPU_MEM_TOTAL" =~ ^[0-9]+$ ]]; then
+  #FAKE_GPU_MEM_TOTAL=16384
+  #fi
+
+  #memtot=${FAKE_GPU_MEM_TOTAL:-16384}
+    # Set static memory.total based on node hostname
+  case "$(hostname)" in
+    node1) memtot=16384 ;;  # 16 GB 
+    node2) memtot=12288 ;;  # 12 GB
+    node3) memtot=8192 ;;   # 8 GB
+    *) memtot=16384 ;;      # default fallback
+  esac
+
+  memtot=$(( (memtot / 256) * 256 ))
 
   # Call rand first to get the random offset for memory usage calculation
   memuse_rand_offset=$(rand 0 20 $((i+200)))
