@@ -9,7 +9,7 @@ set -eo pipefail # Keep error checking, but remove -u which caused issues
 # Explicitly read environment variables, providing defaults if unset/empty
 declare -i FAKE_GPU_COUNT
 declare -i FAKE_SEED
-FAKE_GPU_COUNT=${FAKE_GPU_COUNT:-1}
+FAKE_GPU_COUNT=${FAKE_GPU_COUNT:-1} 
 FAKE_SEED=${FAKE_SEED:-42}
 
 # Generate deterministic pseudo-random values per 5-second bucket

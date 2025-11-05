@@ -23,7 +23,7 @@ services:
     volumes:
       - ../data:/neurocore/data
       - ../logs:/neurocore/logs
-    healthcheck: *default-healthcheck
+    healthcheck: *default-healthcheck 
     restart: unless-stopped
     #environment: # it was duplicated, so commented out
       #- FAKE_GPU_COUNT=2
