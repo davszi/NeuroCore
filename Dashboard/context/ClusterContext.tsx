@@ -86,7 +86,7 @@ interface UserStorage {
 // --- 2. Fallback Mock Data ---
 
 const FALLBACK_CLUSTER_STATE: ClusterState = {
-  last_updated_timestamp: new Date().toISOString(),
+  last_updated_timestamp: "2025-01-01T00:00:00Z",
   total_power_consumption_watts: 0,
   login_nodes: [
     { node_name: 'dws-login-01 (Mock)', cores_total: 32, mem_total_gb: 110, cpu_util_percent: 0, mem_util_percent: 0, active_users: 0 },

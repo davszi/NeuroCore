@@ -9,74 +9,74 @@ x-healthcheck: &default-healthcheck
 
 services:
   node1:
-    image: genai-node:latest
+    build: ./node
     container_name: node1
     hostname: node1
     ports:
-      - "2221:22"            # host:container (SSH)
-    environment:
-      - FAKE_GPU_COUNT=2   
-      - FAKE_SEED=42 
+      - "2221:22"
     networks:
       - cluster-net
     volumes:
       - ../data:/neurocore/data
       - ../logs:/neurocore/logs
-    healthcheck: *default-healthcheck
-    restart: unless-stopped
+      - ../../config:/config:ro
     environment:
       - FAKE_GPU_COUNT=2
       - FAKE_SEED=42
+      - CONFIG_NODES_PATH=/config/nodes.yaml
+      - CONFIG_GPU_INVENTORY_PATH=/config/gpu_inventory.yaml
+    healthcheck: *default-healthcheck
+    restart: unless-stopped
 
   node2:
-    image: genai-node:latest
+    build: ./node
     container_name: node2
     hostname: node2
     ports:
       - "2222:22"
-    environment:
-      - FAKE_GPU_COUNT=1
-      - FAKE_SEED=42
     networks:
       - cluster-net
     volumes:
       - ../data:/neurocore/data
       - ../logs:/neurocore/logs
-    healthcheck: *default-healthcheck
-    restart: unless-stopped
+      - ../../config:/config:ro
     environment:
       - FAKE_GPU_COUNT=1
       - FAKE_SEED=42
+      - CONFIG_NODES_PATH=/config/nodes.yaml
+      - CONFIG_GPU_INVENTORY_PATH=/config/gpu_inventory.yaml
+    healthcheck: *default-healthcheck
+    restart: unless-stopped
 
   node3:
-    image: genai-node:latest
+    build: ./node
     container_name: node3
     hostname: node3
     ports:
       - "2223:22"
-    environment:
-      - FAKE_GPU_COUNT=1
-      - FAKE_SEED=42
     networks:
       - cluster-net
     volumes:
       - ../data:/neurocore/data
       - ../logs:/neurocore/logs
-    healthcheck: *default-healthcheck
-    restart: unless-stopped
+      - ../../config:/config:ro
     environment:
       - FAKE_GPU_COUNT=1
       - FAKE_SEED=42
+      - CONFIG_NODES_PATH=/config/nodes.yaml
+      - CONFIG_GPU_INVENTORY_PATH=/config/gpu_inventory.yaml
+    healthcheck: *default-healthcheck
+    restart: unless-stopped
 
-  # The "Observer" service that polls the nodes
   observer:
-    build: ./observer # We will create this Dockerfile next
-    # This observer needs to be on the same network to find 'node1'
-    # and needs access to the data to write files
+    build: ./observer
     volumes:
       - ../data:/neurocore/data
       - ../logs:/neurocore/logs
-    # This command runs our polling scripts in a loop
+      - ../../config:/config:ro
+    environment:
+      - CONFIG_NODES_PATH=/config/nodes.yaml
+      - CONFIG_GPU_INVENTORY_PATH=/config/gpu_inventory.yaml
     command: >
       bash -c "while true; do
         python3 /opt/neurocore/discover_jobs.py &&
@@ -87,9 +87,38 @@ services:
     depends_on:
       - node1
       - node2
+      - node3
+      
+    networks:
+      - cluster-net
 
-  # The "Observer" service that polls the nodes
+  dashboard:
+    # This is a Debian-based image and is much more compatible
+    # with native packages like lightningcss.
+    image: node:20-slim
+    # ℹ️ Set the container's working directory
+    working_dir: /app
+    # 🗺️ Mount volumes
+    volumes:
+      # 1. Mount your local Dashboard code (same as before)
+      - ../../Dashboard:/app
+      # 2. Mount the shared data folder (same as before)
+      - ../data:/data-bridge
+      # separate and isolated inside the container."
+      # This prevents conflicts between Mac and Linux binaries.
+      - /app/node_modules
+    # 🔌 Expose your Next.js port (3000) to your Mac
+    ports:
+      - "3000:3000"
+    # 🧠 Set the environment variable (same as before)
+    environment:
+      - DATA_PATH=/data-bridge
+    # 🚀 The command to start the Next.js dev server (same as before)
+    command: ["sh", "-c", "npm install && npm run dev"]
+    # 🔗 Connect to the same network (same as before)
+    networks:
+      - cluster-net
+
 networks:
   cluster-net:
-    external: true           # reuse the existing Docker network
     name: cluster-net
