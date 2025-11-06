@@ -1,54 +1,54 @@
 #!/usr/bin/env bash
-set -eo pipefail # Keep error checking, but remove -u which caused issues
+set -eo pipefail 
 
-# Fake NVIDIA SMI for simulation nodes
-# Supports:
-#   --query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw
-#   --format=csv,noheader,nounits
-
-# Explicitly read environment variables, providing defaults if unset/empty
+# ℹ️ Read environment variables for GPU count and seed
 declare -i FAKE_GPU_COUNT
 declare -i FAKE_SEED
 FAKE_GPU_COUNT=${FAKE_GPU_COUNT:-1}
 FAKE_SEED=${FAKE_SEED:-42}
 
-# Generate deterministic pseudo-random values per 5-second bucket
+# ℹ️ Generate deterministic "random" values based on time, hostname, etc.
 BUCKET=$(( $(date +%s) / 5 ))
 HOSTHASH=$(echo -n "$(hostname)" | md5sum | cut -c1-8)
-SALT=$(( 0x${HOSTHASH} )) # Convert hex hash prefix to integer for salt
+SALT=$(( 0x${HOSTHASH} )) 
 
-# Simple pseudo-random generator based on seed, time bucket, hostname, and offset
-rand() { # $1=min $2=max $3=offset
+rand() { 
   local min=$1 max=$2 off=$3
-  # Use a simple linear congruential generator (LCG) approach for pseudo-randomness
-  # Combine seeds, salt, time bucket, and offset for deterministic variation
   local val=$(( ( (FAKE_SEED + SALT + BUCKET + off) * 1103515245 + 12345 ) & 0x7fffffff ))
-  # Scale the value to the desired range [min, max]
   echo $(( min + (val % (max - min + 1)) ))
 }
 
+CPU_UTIL=$(rand 5 25 1000)
+MEM_UTIL=$(rand 10 30 2000)
 
-# Loop through the number of GPUs specified by FAKE_GPU_COUNT
+GPU_JSON_ARRAY="" # Start with an empty string
 for i in $(seq 0 $((FAKE_GPU_COUNT-1))); do
-  # Generate random values within specified bounds using the rand function and GPU index as offset
   util=$(rand 5 95 $i)
-
-  # Call rand first to get the random total memory, then round to nearest 256 MiB
   memtot_rand_val=$(rand 4096 24576 $((i+100)))
   memtot=$(( (memtot_rand_val / 256) * 256 ))
-
-  # Call rand first to get the random offset for memory usage calculation
   memuse_rand_offset=$(rand 0 20 $((i+200)))
-  # Calculate memory used based on utilization and total memory, with a random variation
-  denominator=$((100 + memuse_rand_offset)) # Denominator will be between 100 and 120
-  memuse=$(( (util * memtot) / denominator )) # Calculate memory used
-
-  # Generate random temperature and power draw
+  memuse=$(( (util * memtot) / (100 + memuse_rand_offset) ))
   temp=$(rand 35 80 $((i+300)))
   power=$(rand 50 250 $((i+400)))
 
-  # Output the metrics as a CSV row
-  echo "${util}, ${memuse}, ${memtot}, ${temp}, ${power}"
+  # ℹ️ Create a JSON object for this GPU
+  GPU_JSON="{\"gpu_id\": $i, \"utilization_percent\": $util, \"memory_used_mib\": $memuse, \"memory_total_mib\": $memtot, \"temperature_celsius\": $temp, \"power_draw_watts\": $power}"
+
+  # ℹ️ Add it to the array string (with a comma if not the first)
+  if [ -z "$GPU_JSON_ARRAY" ]; then
+    GPU_JSON_ARRAY="$GPU_JSON"
+  else
+    GPU_JSON_ARRAY="$GPU_JSON_ARRAY, $GPU_JSON"
+  fi
 done
+
+cat << EOF
+{
+  "node_name": "$(hostname)",
+  "cpu_util_percent": $CPU_UTIL,
+  "mem_util_percent": $MEM_UTIL,
+  "gpus": [$GPU_JSON_ARRAY]
+}
+EOF
 
 exit 0

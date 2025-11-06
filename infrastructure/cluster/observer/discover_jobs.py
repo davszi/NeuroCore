@@ -1,107 +1,121 @@
 #!/usr/bin/env python3
 import subprocess, json, sys, shlex, yaml, os
 
-CONFIG_FILE = "/mnt/c/Users/Hp/OneDrive/Desktop/NeuroCore/config/nodes.yaml"
-OUTPUT_FILE = "/mnt/c/Users/Hp/OneDrive/Desktop/NeuroCore/data/jobs.jsonl"
+NODES_CONFIG_PATH = os.environ.get('CONFIG_NODES_PATH', '/config/nodes.yaml')
+OUTPUT_FILE = "/neurocore/data/jobs.jsonl"
+SSH_PASS = "cluster"
 
-# Load nodes from YAML
-try:
-    with open(CONFIG_FILE, "r") as f:
-        config = yaml.safe_load(f)
-        NODES = config.get("nodes", [])
-except Exception:
-    # Silent fail instead of printing errors
-    sys.exit(1)
+def load_nodes():
+    try:
+        with open(NODES_CONFIG_PATH, 'r') as f:
+            config_data = yaml.safe_load(f)
+            return config_data.get('nodes', [])
+    except Exception as e:
+        print(f"Error loading config {NODES_CONFIG_PATH}: {e}", file=sys.stderr)
+        return []
 
 records = []
+nodes_to_poll = load_nodes()
 
-for node in NODES:
+if not nodes_to_poll:
+    print("No nodes found in config file. Exiting.", file=sys.stderr)
+    sys.exit(1)
+
+for node in nodes_to_poll:
     node_name = node.get("name")
-    host = node.get("host")
-    port = str(node.get("port", "22"))
-    ssh_user = node.get("user", "cluster")
-
-    if not node_name or not host:
-        continue  # silently skip invalid node configs
-
-    run_locally = host in ("localhost", "127.0.0.1")
+    if not node_name:
+        continue
 
     try:
-        if run_locally:
-            def run_cmd(cmd, timeout=10):
-                return subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
-        else:
-            SSH_PASS = "cluster"
-            def run_cmd(cmd, timeout=10):
-                ssh_cmd_base = [
-                    "sshpass", "-p", SSH_PASS,
-                    "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-                    "-p", port,
-                    f"{ssh_user}@{host}",
-                ]
-                return subprocess.run(ssh_cmd_base + [cmd], capture_output=True, text=True, timeout=timeout)
+        node_port = node["port"]
+        node_user = node["user"]
+        
+        ssh_cmd_base = [
+            "sshpass", "-p", SSH_PASS,
+            "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+            "-p", "22",
+            f"{node_user}@{node_name}",
+        ]
+        
+        search_cmd = "pgrep -af 'python3 -u /opt/neurocore/dummy_train.py'"
+        find_cmd = ssh_cmd_base + [search_cmd]
+        result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=10)
 
-        search_cmd = "pgrep -af 'python3.*dummy_train.py'"
-        result = run_cmd(search_cmd, timeout=10)
-
-        if result.returncode != 0:
+        if result.returncode == 1:
+            print(f"No 'dummy_train.py' processes found on {node_name}.")
             continue
-
+        elif result.returncode != 0:
+            print(f"Error running pgrep on {node_name}: {result.stderr}", file=sys.stderr)
+            continue
+            
         for line in result.stdout.splitlines():
-            if not line.strip():
+            if not line:
                 continue
-            parts = line.split(' ', 1)
-            if len(parts) < 2 or not parts[0].isdigit():
+                
+            parts = line.split(' ', 1) 
+            if len(parts) < 2:
+                continue
+                
+            pid_str, full_cmd = parts
+            if not pid_str.isdigit():
+                continue
+                
+            pid = int(pid_str)
+            
+            if "|" in full_cmd:
                 continue
 
-            pid = int(parts[0])
-            full_cmd = parts[1].strip()
-
-            if "dummy_train.py" not in full_cmd:
-                continue
-
-            args_map = {"owner": "default_owner", "project": "default_project", "mode": "full"}
+            owner, project, mode = None, None, None
+            
             try:
                 py_cmd_args_str = full_cmd.split("dummy_train.py", 1)[1]
                 args_list = shlex.split(py_cmd_args_str)
+                
+                args_map = {}
                 for i, arg in enumerate(args_list):
                     if arg == '--owner' and i + 1 < len(args_list):
-                        args_map['owner'] = args_list[i + 1]
+                        args_map['owner'] = args_list[i+1]
                     elif arg == '--project' and i + 1 < len(args_list):
-                        args_map['project'] = args_list[i + 1]
+                        args_map['project'] = args_list[i+1]
                     elif arg == '--mode' and i + 1 < len(args_list):
-                        args_map['mode'] = args_list[i + 1]
-            except Exception:
-                pass
+                        args_map['mode'] = args_list[i+1]
+                
+                owner = args_map.get('owner')
+                project = args_map.get('project')
+                mode = args_map.get('mode')
 
-            owner = args_map["owner"]
-            project = args_map["project"]
-            mode = args_map["mode"]
+                if not owner or not project or not mode:
+                    raise ValueError(f"Missing one or more required arguments in {args_list}")
 
-            uptime_cmd = f"ps -p {pid} -o etime="
-            uptime_result = run_cmd(uptime_cmd, timeout=5)
+            except Exception as e:
+                print(f"Failed to parse cmd: '{full_cmd}' on {node_name}. Error: {e}", file=sys.stderr)
+                continue
+            
+            uptime_cmd = ssh_cmd_base + [f"ps -p {pid} -o etime="]
+            uptime_result = subprocess.run(uptime_cmd, capture_output=True, text=True, timeout=5)
             uptime = uptime_result.stdout.strip()
-
+            
             session_name = f"train:{owner}:{project}:{mode}"
-            log_file = f"/mnt/c/Users/Hp/OneDrive/Desktop/NeuroCore/data/logs/{session_name.replace(':','_')}.log"
 
-            log_cmd = f"tail -n 5 {log_file} 2>/dev/null || true"
-            log_result = run_cmd(log_cmd, timeout=5)
+            log_file = f"/neurocore/logs/{session_name.replace(':','_')}.log"
+            log_cmd = ssh_cmd_base + [f"tail -n 5 {log_file} 2>/dev/null || true"]
+            log_result = subprocess.run(log_cmd, capture_output=True, text=True, timeout=5)
 
             records.append({
                 "node": node_name,
                 "session": session_name,
                 "pid": pid,
                 "uptime": uptime,
-                "log_file": log_file,  # ✅ added full log path
                 "log_preview": log_result.stdout.splitlines()
             })
 
-    except Exception:
-        continue  # skip node silently
+    except Exception as e:
+        print(f"Failed to process {node_name}: {e}", file=sys.stderr)
 
-# Write output (no console prints)
-os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
-with open(OUTPUT_FILE, "w") as f:
-    for rec in records:
-        f.write(json.dumps(rec) + "\n")
+try:
+    with open(OUTPUT_FILE, "w") as f:
+        for rec in records:
+            f.write(json.dumps(rec) + "\n")
+    print(f"Successfully wrote {len(records)} jobs to {OUTPUT_FILE}")
+except Exception as e:
+    print(f"Error writing to {OUTPUT_FILE}: {e}", file=sys.stderr)

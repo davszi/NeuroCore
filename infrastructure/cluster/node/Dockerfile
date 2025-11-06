@@ -58,4 +58,4 @@ RUN ln -sf /opt/neurocore/fake-nvidia-smi.sh /usr/local/bin/nvidia-smi
 EXPOSE 22
 
 # 11) Keep the container running by launching sshd in the foreground
-CMD ["/usr/sbin/sshd", "-D"]
+CMD su - cluster -c "/opt/neurocore/seed-jobs.sh" && exec /usr/sbin/sshd -D
