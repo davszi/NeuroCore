@@ -1,20 +1,27 @@
+# Base Python image
 FROM python:3.10-slim
 
-# Install sshpass for non-interactive SSH
-RUN apt-get update && apt-get install -y sshpass \
-    && rm -rf /var/lib/apt/lists/*
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Create the 'cluster' user (same name as nodes) ================> added NEW
-RUN useradd -ms /bin/bash cluster && echo 'cluster:cluster' | chpasswd
+RUN apt-get update && apt-get install -y sshpass \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir paramiko pyyaml
+
+RUN useradd -ms /bin/bash cluster \
+ && echo 'cluster:cluster' | chpasswd
 
 RUN mkdir -p /opt/neurocore /neurocore/data /neurocore/logs \
  && chown -R cluster:cluster /opt/neurocore /neurocore \
  && chmod -R 775 /opt/neurocore /neurocore
 
-# Copy the polling scripts
 COPY discover_jobs.py /opt/neurocore/discover_jobs.py
 COPY poll_metrics.py /opt/neurocore/poll_metrics.py
 COPY build_snapshot.py /opt/neurocore/build_snapshot.py
+
 RUN chmod +x /opt/neurocore/*.py
+RUN pip install pytz
 
 WORKDIR /opt/neurocore
+
+CMD ["/bin/bash"]

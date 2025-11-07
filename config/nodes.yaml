@@ -1,17 +1,17 @@
 schema: nodes/v1
 nodes:
-  - name: node1
-    host: localhost
-    port: 2221
+  - name: core-alpha
+    host: node1
+    port: 22
     user: cluster
     gpu_count: 2
-  - name: node2
-    host: localhost
-    port: 2222
+  - name: neuron-beta
+    host: node2
+    port: 22
     user: cluster
     gpu_count: 1
-  - name: node3
-    host: localhost
-    port: 2223
+  - name: synapse-gamma
+    host: node3
+    port: 22
     user: cluster
     gpu_count: 1
