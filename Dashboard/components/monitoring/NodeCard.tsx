@@ -2,7 +2,10 @@ import React from 'react';
 import GpuCard from './GpuCard';
 import ProgressBar from '../ui/ProgressBar';
 
-// Simplified Node interface from our context
+// ✅ --- THIS IS THE FIX ---
+// The interface for a GpuNode is updated.
+// The 'gpus' array now has the correct properties
+// to match what GpuCard.tsx expects.
 interface GpuNode {
   node_name: string;
   cores_total: number;
@@ -14,15 +17,16 @@ interface GpuNode {
     gpu_id: number;
     gpu_name: string;
     utilization_percent: number;
-    memory_util_percent: number;
+    memory_used_mib: number;   // Was 'memory_util_percent'
+    memory_total_mib: number; // Was missing
     temperature_celsius: number;
-    power_watts: number;
+    power_draw_watts: number; // Was 'power_draw_watts'
     power_limit_watts: number;
   }>;
 }
 
 interface NodeCardProps {
-  node: GpuNode;
+  node: GpuNode; // This now uses the correct GNote type
 }
 
 export default function NodeCard({ node }: NodeCardProps) {
@@ -44,6 +48,9 @@ export default function NodeCard({ node }: NodeCardProps) {
 
       {/* GPU Cards */}
       <div className="space-y-2">
+        {/* This .map() will now work. The 'gpu' object it passes
+          now has the correct shape that GpuCard expects.
+        */}
         {node.gpus.map((gpu) => (
           <GpuCard key={gpu.gpu_id} gpu={gpu} />
         ))}

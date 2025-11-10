@@ -12,7 +12,7 @@ interface Gpu {
   memory_used_mib: number;
   memory_total_mib: number;
   temperature_celsius: number;
-  power_watts: number;
+  power_draw_watts: number;
   power_limit_watts: number;
 }
 
@@ -99,7 +99,7 @@ const FALLBACK_CLUSTER_STATE: ClusterState = {
   ],
   gpu_nodes: [
     { node_name: 'dws-00 (Mock)', cores_total: 0, mem_total_gb: 0, cpu_util_percent: 0, mem_util_percent: 0, gpu_summary_name: 'Mock GPU', gpus: [
-        { gpu_id: 0, gpu_name: 'Mock H200', utilization_percent: 0, memory_util_percent: 0, memory_used_mib: 0, memory_total_mib: 0, temperature_celsius: 0, power_watts: 0, power_limit_watts: 0 },
+        { gpu_id: 0, gpu_name: 'Mock H200', utilization_percent: 0, memory_util_percent: 0, memory_used_mib: 0, memory_total_mib: 0, temperature_celsius: 0, power_draw_watts: 0, power_limit_watts: 0 },
       ],
     },
   ],
