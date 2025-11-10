@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOG_DIR="/data_out/logs"
+LOG_DIR="/neurocore/logs"
 mkdir -p "$LOG_DIR"
 
 # Just use the default tmux binary path
