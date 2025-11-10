@@ -1,18 +1,35 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
+import yaml from 'js-yaml';
+// ✅ 1. Import the new, stable SSH library
+import { NodeSSH } from 'node-ssh';
 
-// --- (Your Gpu and GpuNode interfaces are here) ---
+// --- (All interfaces remain the same) ---
 interface Gpu {
   gpu_id: number;
   gpu_name: string;
   utilization_percent: number;
-  memory_util_percent: number;
   memory_used_mib: number;
   memory_total_mib: number;
   temperature_celsius: number;
-  power_draw_watts: number; 
+  power_draw_watts: number;
+}
+interface GpuInventoryNode {
+  gpu_name: string;
   power_limit_watts: number;
+  cores_total: number;
+  mem_total_gb: number;
+}
+interface GpuInventory {
+  defaults: GpuInventoryNode;
+  nodes: { [nodeName: string]: GpuInventoryNode };
+}
+interface NodeConfig {
+  name: string;
+  host: string;
+  port: number;
+  user: string;
 }
 interface GpuNode {
   node_name: string;
@@ -21,69 +38,129 @@ interface GpuNode {
   cpu_util_percent: number;
   mem_util_percent: number;
   gpu_summary_name: string;
-  gpus: Gpu[]; 
+  gpus: Gpu[];
 }
 
+// --- Real Commands (Unchanged) ---
+const GPU_CMD = `nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw --format=csv,noheader,nounits`;
+const HOST_CMD = `top -bn1 | grep '%Cpu(s)' | awk '{print 100 - $8}'; free -m | grep Mem | awk '{print $3, $2}'`;
 
-// Helper function
-function readJsonlFile(filePath: string): any[] {
+/**
+ * Helper function to run commands on a remote server
+ */
+async function pollNode(node: NodeConfig): Promise<any | null> {
+  // ℹ️ Create a new SSH object for each node
+  const ssh = new NodeSSH();
+  let nodeData: any = { node_name: node.name, gpus: [] };
+
   try {
-    // ✅ Check if file exists. If not, it's not an error, just return empty.
-    if (!fs.existsSync(filePath)) {
-      console.warn(`[API /api/cluster-state] File not found: ${filePath}. Returning empty array.`);
-      return [];
-    }
-    
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const lines = fileContent.split('\n').filter(Boolean); // Filter empty lines
+    // ✅ 2. Connect using the new library's syntax
+    await ssh.connect({
+      host: node.host,
+      port: node.port,
+      username: node.user,
+      password: 'phie9aw7Lee7', // ❗️ Remember to replace this!
+    });
 
-    // ✅ Check if file is empty. Not an error, just return empty.
-    if (lines.length === 0) {
-      console.warn(`[API /api/cluster-state] File is empty: ${filePath}. Returning empty array.`);
-      return [];
+    // --- 1. Get GPU Stats ---
+    // ℹ️ This library returns an object { stdout, stderr, code }
+    const gpuResult = await ssh.execCommand(GPU_CMD);
+    if (gpuResult.code === 0 && gpuResult.stdout.trim() !== '') {
+      gpuResult.stdout.trim().split('\n').forEach((line: string) => {
+        const parts = line.split(', ');
+        if (parts.length >= 7) { 
+          nodeData.gpus.push({
+            gpu_id: parseInt(parts[0]),
+            gpu_name: parts[1].trim(),
+            utilization_percent: parseFloat(parts[2]),
+            memory_used_mib: parseFloat(parts[3]),
+            memory_total_mib: parseFloat(parts[4]),
+            temperature_celsius: parseFloat(parts[5]),
+            power_draw_watts: parseFloat(parts[6]),
+          });
+        }
+      });
+    }
+
+    // --- 2. Get Host (CPU/MEM) Stats ---
+    const hostResult = await ssh.execCommand(HOST_CMD);
+    if (hostResult.code === 0 && hostResult.stdout.trim() !== '') {
+      const lines = hostResult.stdout.trim().split('\n');
+      if (lines.length >= 2) {
+        const cpuLine = lines[0];
+        const memLine = lines[1];
+        const cpu_util_percent = parseFloat(cpuLine);
+        const [mem_used_mib, mem_total_mib] = memLine.split(' ').map(parseFloat);
+        
+        nodeData.cpu_util_percent = cpu_util_percent;
+        nodeData.mem_util_percent = (mem_used_mib / mem_total_mib) * 100;
+      }
     }
     
-    return lines.map(line => JSON.parse(line));
+    // ✅ 3. Close the connection
+    ssh.dispose();
+    return nodeData;
+
   } catch (e) {
-    console.error(`[API /api/cluster-state] Failed to read or parse ${filePath}:`, e);
-    return []; // ✅ Return empty on any error
+    console.error(`Failed to poll node ${node.name}: ${(e as Error).message}`);
+    ssh.dispose(); // ℹ️ Always dispose on error
+    return null; // Return null if a node fails
   }
 }
 
-// --- API HANDLER ---
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  // ℹ️ 1. Get the data path from an environment variable (set in docker-compose)
-  //    2. If it's not set, fall back to the local path (for when you run 'npm run dev')
-  const dataDir = process.env.DATA_PATH || path.join(process.cwd(), '../infrastructure/data');
-  const metricsPath = path.join(dataDir, 'metrics.jsonl');
+/**
+ * The main API Handler
+ */
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   
-  const gpuNodes: GpuNode[] = readJsonlFile(metricsPath);
+  // 1. Read the REAL config files
+  const nodesPath = path.join(process.cwd(), '../config/nodes.yaml');
+  const inventoryPath = path.join(process.cwd(), '../config/gpu_inventory.yaml');
 
-  const totalPower = gpuNodes.reduce((acc: number, node: GpuNode) => {
-    const nodePower = node.gpus 
-      ? node.gpus.reduce((sum: number, gpu: Gpu) => sum + (gpu.power_draw_watts || 0), 0) // Use power_draw_watts
-      : 0;
-    return acc + nodePower;
+  let nodesConfig, gpuInventory;
+  try {
+    nodesConfig = yaml.load(fs.readFileSync(nodesPath, 'utf8')) as { nodes: NodeConfig[] };
+    gpuInventory = yaml.load(fs.readFileSync(inventoryPath, 'utf8')) as GpuInventory;
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to read config files.', details: (e as Error).message });
+  }
+
+  // 2. Poll all nodes in parallel
+  const pollPromises = nodesConfig.nodes.map(pollNode);
+  const results = await Promise.all(pollPromises);
+
+  // 3. Filter out failed nodes and combine with static inventory
+  const liveGpuNodes: GpuNode[] = results.filter(r => r !== null).map((nodeData: any) => {
+    const staticData = gpuInventory.nodes[nodeData.node_name] || gpuInventory.defaults;
+    return {
+      ...staticData, 
+      ...nodeData,    
+      gpu_summary_name: staticData.gpu_name, 
+    };
+  });
+
+  // (Unchanged: .reduce() for totalPower)
+  const totalPower = liveGpuNodes.reduce((acc: number, node: GpuNode) => {
+      const nodePower = (node.gpus || []).reduce((sum: number, gpu: Gpu) => {
+          return sum + (gpu.power_draw_watts || 0);
+      }, 0);
+      return acc + nodePower;
   }, 0);
 
-  // Construct the ClusterState object our frontend expects
+  // 4. Build the final API response
   const clusterState = {
     last_updated_timestamp: new Date().toISOString(),
     total_power_consumption_watts: totalPower,
     
-    // --- Mock data for parts we haven't built in Workstream A ---
+    // (Unchanged: Mock data)
     login_nodes: [
-      { node_name: 'dws-login-01 (API)', cores_total: 32, mem_total_gb: 110, cpu_util_percent: 15, mem_util_percent: 23, active_users: 25 }
+      { node_name: 'cloud-243.rz...', cores_total: 8, mem_total_gb: 32, cpu_util_percent: 10, mem_util_percent: 20, active_users: 5 }
     ],
-    storage: [
-      { mount_point: 'CEPH:/home (API)', usage_percent: 88.56, used_tib: 5.37, total_tib: 6.0 }
-    ],
-    slurm_queue_info: [
-      { partition: 'gpu-vram-48gb (API)', cpu_free: 278, cpu_allocated: 314, gpu_free: 15, gpu_allocated: 25, mem_free_gb: 4487, mem_allocated_gb: 1118, interactive_jobs_running: 2, interactive_jobs_pending: 0, batch_jobs_running: 15, batch_jobs_pending: 0 }
-    ],
+    storage: [ /* ... Mocked storage ... */ ],
+    slurm_queue_info: [ /* ... Mocked SLURM ... */ ],
     
-    // --- Real data from the simulation (or empty array) ---
-    gpu_nodes: gpuNodes,
+    // --- Real data from polling ---
+    gpu_nodes: liveGpuNodes,
   };
 
   res.status(200).json(clusterState);

@@ -1,47 +1,92 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
+import yaml from 'js-yaml';
+// ✅ Use the same SSH library
+import { NodeSSH } from 'node-ssh';
 
-// Helper function
-function readJsonlFile(filePath: string): any[] {
+// --- TYPE DEFINITIONS ---
+interface Job {
+  node: string;
+  session: string;
+  pid: number;
+  uptime: string;
+  log_preview: string[];
+}
+interface NodeConfig {
+  name: string;
+  host: string;
+  port: number;
+  user: string;
+}
+
+// ℹ️ This is the command to find real running python jobs
+const JOB_CMD = `ps -u $USER -f --no-headers -o pid,etime,cmd | grep 'python' | grep -v 'grep'`;
+
+/**
+ * Helper function to poll a node for jobs
+ */
+async function pollNodeForJobs(node: NodeConfig): Promise<Job[]> {
+  const ssh = new NodeSSH();
+  const records: Job[] = [];
+
   try {
-    // ✅ Check if file exists. If not, it's not an error, just return empty.
-    if (!fs.existsSync(filePath)) {
-      console.warn(`[API /api/jobs] File not found: ${filePath}. Returning empty array.`);
-      return [];
-    }
-    
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const lines = fileContent.split('\n').filter(Boolean); // Filter empty lines
+    // ✅ Connect using the new library's syntax
+    await ssh.connect({
+      host: node.host,
+      port: node.port,
+      username: node.user,
+      password: 'phie9aw7Lee7', // ❗️ Same password as in cluster-state.ts
+    });
 
-    // ✅ Check if file is empty. Not an error, just return empty.
-    if (lines.length === 0) {
-      console.warn(`[API /api/jobs] File is empty: ${filePath}. Returning empty array.`);
-      return [];
+    const jobResult = await ssh.execCommand(JOB_CMD);
+
+    // ✅ Check for 'stdout' property and success
+    if (jobResult.code === 0 && jobResult.stdout.trim() !== '') {
+      jobResult.stdout.trim().split('\n').forEach((line: string) => {
+        const parts = line.trim().split(/\s+/, 3); // Split into PID, ETIME, CMD
+        if (parts.length < 3) return;
+
+        records.push({
+          node: node.name,
+          session: parts[2].split(' ')[0].split('/').pop() || 'python_job', 
+          pid: parseInt(parts[0]),
+          uptime: parts[1],
+          log_preview: [parts[2]], // Show the full command as the "log"
+        });
+      });
     }
     
-    return lines.map(line => JSON.parse(line));
+    ssh.dispose();
+    return records;
+
   } catch (e) {
-    console.error(`[API /api/jobs] Failed to read or parse ${filePath}:`, e);
-    return []; // ✅ Return empty on any error
+    console.error(`Failed to poll jobs from ${node.name}: ${(e as Error).message}`);
+    ssh.dispose(); // ℹ️ Always dispose on error
+    return []; // Return empty array on failure
   }
 }
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  // ℹ️ 1. Get the data path from an environment variable (set in docker-compose)
-  //    2. If it's not set, fall back to the local path (for when you run 'npm run dev')
-  const dataDir = process.env.DATA_PATH || path.join(process.cwd(), '../infrastructure/data');
-  const jobsPath = path.join(dataDir, 'jobs.jsonl');
+/**
+ * The main API Handler
+ */
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   
-  const jobs = readJsonlFile(jobsPath);
+  // 1. Read the config file
+  const nodesPath = path.join(process.cwd(), '../config/nodes.yaml');
+  let nodesConfig;
+  try {
+    nodesConfig = yaml.load(fs.readFileSync(nodesPath, 'utf8')) as { nodes: NodeConfig[] };
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to read nodes.yaml.', details: (e as Error).message });
+  }
 
-  // ❌ --- BUG WAS HERE --- ❌
-  // if (jobs.length === 0) {
-  //   return res.status(500).json({ error: 'Failed to read simulation jobs.' });
-  // }
-  
-  // ✅ --- FIX --- ✅
-  // Always return 200 OK. If 'jobs' is an empty array, the frontend
-  // will just show "No active jobs found."
-  res.status(200).json(jobs);
+  // 2. Poll all nodes in parallel
+  const pollPromises = nodesConfig.nodes.map(pollNodeForJobs);
+  const results = await Promise.all(pollPromises);
+
+  // 3. Flatten the results
+  const allJobs: Job[] = results.flat(); 
+
+  res.status(200).json(allJobs);
 }
