@@ -3,6 +3,8 @@ import argparse, json, math, os, sys
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import yaml
+from datetime import datetime
+import pytz
 
 def load_nodes(nodes_path: Path) -> List[Dict]:
     if not nodes_path.exists():
@@ -121,6 +123,18 @@ def build_snapshot(metrics_latest: Dict[Tuple[str,int], Dict], nodes_cfg: List[D
             "gpu_summary_name": f"{len(gpus)}x {gpu_name}",
             "gpus": gpus
         })
+    try:
+        if last_ts.endswith("Z"):
+            last_ts = last_ts.replace("Z", "+00:00")
+        last_dt = datetime.fromisoformat(last_ts)
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=pytz.utc)
+        last_dt_berlin = last_dt.astimezone(pytz.timezone("Europe/Berlin"))
+    except Exception:
+        # fallback: current Berlin time
+        last_dt_berlin = datetime.now(pytz.timezone("Europe/Berlin"))
+
+    last_ts = last_dt_berlin.isoformat()
 
     snapshot = {
         "last_updated_timestamp": last_ts,

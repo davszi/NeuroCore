@@ -10,8 +10,8 @@ x-healthcheck: &default-healthcheck
 services:
   node1:
     build: ./node
-    container_name: node1
-    hostname: node1
+    container_name: core-alpha
+    hostname: core-alpha
     ports:
       - "2221:22"
     networks:
@@ -30,8 +30,8 @@ services:
 
   node2:
     build: ./node
-    container_name: node2
-    hostname: node2
+    container_name: neuron-beta
+    hostname: neuron-beta
     ports:
       - "2222:22"
     networks:
@@ -50,8 +50,8 @@ services:
 
   node3:
     build: ./node
-    container_name: node3
-    hostname: node3
+    container_name: synapse-gamma
+    hostname: synapse-gamma
     ports:
       - "2223:22"
     networks:
@@ -69,7 +69,11 @@ services:
     restart: unless-stopped
 
   observer:
-    build: ./observer
+    build: ./observer # We will create this Dockerfile next
+    # This observer needs to be on the same network to find 'node1'
+    # and needs access to the data to write files
+    networks:
+      - cluster-net # added NEW to use the existing network & not creatting a deafult network when building observer
     volumes:
       - ../data:/neurocore/data
       - ../logs:/neurocore/logs
@@ -84,13 +88,12 @@ services:
         echo 'Observer polled, sleeping 5...';
         sleep 5;
       done"
+    user: root
     depends_on:
       - node1
       - node2
       - node3
-      
-    networks:
-      - cluster-net
+    restart: unless-stopped
 
   dashboard:
     # This is a Debian-based image and is much more compatible
