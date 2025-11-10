@@ -108,7 +108,7 @@ def build_snapshot(metrics_latest: Dict[Tuple[str,int], Dict], nodes_cfg: List[D
                 "memory_used_mib": mem_used,
                 "memory_total_mib": mem_total,
                 "temperature_celsius": int(rec.get("temp_c", 0)),
-                "power_watts": int(rec.get("power_w", 0)),
+                "power_draw_watts": int(rec.get("power_w", 0)),
             }
             if power_limit is not None:
                 gpu_entry["power_limit_watts"] = int(power_limit)
