@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-// ✅ 1. Import the new, stable SSH library
+// 1. ✅ Import the 'node-ssh' library that we know works
 import { NodeSSH } from 'node-ssh';
 
 // --- (All interfaces remain the same) ---
@@ -41,7 +41,7 @@ interface GpuNode {
   gpus: Gpu[];
 }
 
-// --- Real Commands (Unchanged) ---
+// --- Real Commands to Run on the Servers ---
 const GPU_CMD = `nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw --format=csv,noheader,nounits`;
 const HOST_CMD = `top -bn1 | grep '%Cpu(s)' | awk '{print 100 - $8}'; free -m | grep Mem | awk '{print $3, $2}'`;
 
@@ -49,12 +49,11 @@ const HOST_CMD = `top -bn1 | grep '%Cpu(s)' | awk '{print 100 - $8}'; free -m | 
  * Helper function to run commands on a remote server
  */
 async function pollNode(node: NodeConfig): Promise<any | null> {
-  // ℹ️ Create a new SSH object for each node
   const ssh = new NodeSSH();
   let nodeData: any = { node_name: node.name, gpus: [] };
 
   try {
-    // ✅ 2. Connect using the new library's syntax
+    // 2. ✅ Use the 'node-ssh' connection logic
     await ssh.connect({
       host: node.host,
       port: node.port,
@@ -62,8 +61,7 @@ async function pollNode(node: NodeConfig): Promise<any | null> {
       password: 'phie9aw7Lee7', // ❗️ Remember to replace this!
     });
 
-    // --- 1. Get GPU Stats ---
-    // ℹ️ This library returns an object { stdout, stderr, code }
+    // --- 3. Get GPU Stats ---
     const gpuResult = await ssh.execCommand(GPU_CMD);
     if (gpuResult.code === 0 && gpuResult.stdout.trim() !== '') {
       gpuResult.stdout.trim().split('\n').forEach((line: string) => {
@@ -82,7 +80,7 @@ async function pollNode(node: NodeConfig): Promise<any | null> {
       });
     }
 
-    // --- 2. Get Host (CPU/MEM) Stats ---
+    // --- 4. Get Host (CPU/MEM) Stats ---
     const hostResult = await ssh.execCommand(HOST_CMD);
     if (hostResult.code === 0 && hostResult.stdout.trim() !== '') {
       const lines = hostResult.stdout.trim().split('\n');
@@ -97,7 +95,7 @@ async function pollNode(node: NodeConfig): Promise<any | null> {
       }
     }
     
-    // ✅ 3. Close the connection
+    // 5. ✅ Close the connection
     ssh.dispose();
     return nodeData;
 
@@ -130,16 +128,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const results = await Promise.all(pollPromises);
 
   // 3. Filter out failed nodes and combine with static inventory
-  const liveGpuNodes: GpuNode[] = results.filter(r => r !== null).map((nodeData: any) => {
-    const staticData = gpuInventory.nodes[nodeData.node_name] || gpuInventory.defaults;
-    return {
-      ...staticData, 
-      ...nodeData,    
-      gpu_summary_name: staticData.gpu_name, 
-    };
+  const liveGpuNodes: GpuNode[] = results
+    .filter((r): r is PolledNodeData => r !== null) // Type guard to filter nulls
+    .map((nodeData: PolledNodeData) => { // Use specific type
+      const staticData = gpuInventory.nodes[nodeData.node_name] || gpuInventory.defaults;
+      return {
+        ...staticData, 
+        ...nodeData,    
+        gpu_summary_name: staticData.gpu_name, 
+      };
   });
 
-  // (Unchanged: .reduce() for totalPower)
+  // 4. Add Explicit Types to .reduce()
   const totalPower = liveGpuNodes.reduce((acc: number, node: GpuNode) => {
       const nodePower = (node.gpus || []).reduce((sum: number, gpu: Gpu) => {
           return sum + (gpu.power_draw_watts || 0);
@@ -147,12 +147,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return acc + nodePower;
   }, 0);
 
-  // 4. Build the final API response
+  // 5. Build the final API response
   const clusterState = {
     last_updated_timestamp: new Date().toISOString(),
     total_power_consumption_watts: totalPower,
     
-    // (Unchanged: Mock data)
+    // (Mock data)
     login_nodes: [
       { node_name: 'cloud-243.rz...', cores_total: 8, mem_total_gb: 32, cpu_util_percent: 10, mem_util_percent: 20, active_users: 5 }
     ],
@@ -164,4 +164,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   };
 
   res.status(200).json(clusterState);
+}
+
+// ℹ️ We need to add this partial type to fix the 'any' errors
+interface PolledNodeData {
+  node_name: string;
+  gpus: Gpu[];
+  cpu_util_percent?: number;
+  mem_util_percent?: number;
 }

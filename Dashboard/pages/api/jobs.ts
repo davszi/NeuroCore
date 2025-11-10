@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-// ✅ Use the same SSH library
+// ✅ 1. Use the 'node-ssh' library
 import { NodeSSH } from 'node-ssh';
 
 // --- TYPE DEFINITIONS ---
@@ -31,7 +31,7 @@ async function pollNodeForJobs(node: NodeConfig): Promise<Job[]> {
   const records: Job[] = [];
 
   try {
-    // ✅ Connect using the new library's syntax
+    // ✅ 2. Connect using the new library's syntax
     await ssh.connect({
       host: node.host,
       port: node.port,
@@ -41,7 +41,7 @@ async function pollNodeForJobs(node: NodeConfig): Promise<Job[]> {
 
     const jobResult = await ssh.execCommand(JOB_CMD);
 
-    // ✅ Check for 'stdout' property and success
+    // ✅ 3. Check for 'stdout' property and success
     if (jobResult.code === 0 && jobResult.stdout.trim() !== '') {
       jobResult.stdout.trim().split('\n').forEach((line: string) => {
         const parts = line.trim().split(/\s+/, 3); // Split into PID, ETIME, CMD
@@ -57,6 +57,7 @@ async function pollNodeForJobs(node: NodeConfig): Promise<Job[]> {
       });
     }
     
+    // ✅ 4. Close the connection
     ssh.dispose();
     return records;
 
