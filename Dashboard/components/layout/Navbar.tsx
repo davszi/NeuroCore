@@ -5,10 +5,9 @@ import { HiOutlineMenu, HiX } from 'react-icons/hi'; // <-- 1. Import icons
 
 // Define the navigation links
 const navItems = [
-  { name: 'Dashboard', href: '/' },
+  { name: 'Ressources', href: '/' },
   { name: 'Jobs', href: '/jobs' },
-  { name: 'Monitoring', href: '/monitoring' },
-  { name: 'Logs', href: '/logs' },
+  { name: 'Benchmarks', href: '/benchmarks' },
 ];
 
 export default function Navbar() {

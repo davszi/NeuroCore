@@ -21,7 +21,7 @@ interface NodeConfig {
 }
 
 // ℹ️ This is the command to find real running python jobs
-const JOB_CMD = `ps -u $USER -f --no-headers -o pid,etime,cmd | grep 'python' | grep -v 'grep'`;
+const JOB_CMD = `ps -u $USER -o pid,etime,cmd --no-headers | grep 'python' | grep -v 'grep'`;
 
 /**
  * Helper function to poll a node for jobs
@@ -36,10 +36,11 @@ async function pollNodeForJobs(node: NodeConfig): Promise<Job[]> {
       host: node.host,
       port: node.port,
       username: node.user,
-      password: 'phie9aw7Lee7', // ❗️ Same password as in cluster-state.ts
+      password: 'Eeieiwi39393', // ❗️ Same password as in cluster-state.ts
     });
 
     const jobResult = await ssh.execCommand(JOB_CMD);
+    console.log(`Polled jobs from ${node.name}:`, jobResult);
 
     // ✅ 3. Check for 'stdout' property and success
     if (jobResult.code === 0 && jobResult.stdout.trim() !== '') {

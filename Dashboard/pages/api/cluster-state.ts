@@ -64,11 +64,12 @@ async function pollNode(node: NodeConfig): Promise<PolledNodeData | null> {
       host: node.host,
       port: node.port,
       username: node.user,
-      password: 'phie9aw7Lee7', // ❗️ Remember to replace this!
+      password: 'Eeieiwi39393', // ❗️ Remember to replace this!
     });
 
     // --- 1. Get GPU Stats ---
     const gpuResult = await ssh.execCommand(GPU_CMD);
+    console.log(`GPU Result for ${node.name}:`, gpuResult);
     if (gpuResult.code === 0 && gpuResult.stdout.trim() !== '') {
       gpuResult.stdout.trim().split('\n').forEach((line: string) => {
         const parts = line.split(', ');
@@ -88,6 +89,7 @@ async function pollNode(node: NodeConfig): Promise<PolledNodeData | null> {
 
     // --- 2. Get Host (CPU/MEM) Stats ---
     const hostResult = await ssh.execCommand(HOST_CMD);
+    console.log(`Host Result for ${node.name}:`, hostResult);
     if (hostResult.code === 0 && hostResult.stdout.trim() !== '') {
       const lines = hostResult.stdout.trim().split('\n');
       if (lines.length >= 2) {
@@ -166,14 +168,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }, 0);
 
   // (Unchanged: Building the final response)
+  // 4. Build the final API response
   const clusterState = {
     last_updated_timestamp: new Date().toISOString(),
     total_power_consumption_watts: totalPower,
+    
+    // --- Mock Data (as planned) ---
     login_nodes: [
-      { node_name: 'cloud-243.rz...', cores_total: 8, mem_total_gb: 32, cpu_util_percent: 10, mem_util_percent: 20, active_users: 5 }
+      { node_name: 'dws-login-01 (Mock)', cores_total: 32, mem_total_gb: 110, cpu_util_percent: 15, mem_util_percent: 23, active_users: 25 },
+      { node_name: 'dws-login-02 (Mock)', cores_total: 32, mem_total_gb: 110, cpu_util_percent: 0, mem_util_percent: 20, active_users: 11 }
     ],
-    storage: [ /* ... Mocked storage ... */ ],
-    slurm_queue_info: [ /* ... Mocked SLURM ... */ ],
+    storage: [ /* ... Still empty for now ... */ ],
+    
+    // Added mock data based on your screenshot
+    slurm_queue_info: [
+      { partition: 'cpu (Mock)', cpu_free: 142, cpu_allocated: 340, mem_free_gb: 10549, mem_allocated_gb: 1990, gpu_free: null, gpu_allocated: null, interactive_jobs_running: 0, interactive_jobs_pending: 0, batch_jobs_running: 0, batch_jobs_pending: 0 },
+      { partition: 'gpu-vram-12gb (Mock)', cpu_free: 88, cpu_allocated: 64, mem_free_gb: 1378, mem_allocated_gb: 214, gpu_free: 8, gpu_allocated: 2, interactive_jobs_running: 0, interactive_jobs_pending: 0, batch_jobs_running: 0, batch_jobs_pending: 0 },
+      { partition: 'gpu-vram-48gb (Mock)', cpu_free: 278, cpu_allocated: 314, mem_free_gb: 4487, mem_allocated_gb: 1118, gpu_free: 15, gpu_allocated: 25, interactive_jobs_running: 0, interactive_jobs_pending: 0, batch_jobs_running: 0, batch_jobs_pending: 0 }
+    ],
+    
+    // --- Real data from polling ---
     gpu_nodes: liveGpuNodes,
   };
 
