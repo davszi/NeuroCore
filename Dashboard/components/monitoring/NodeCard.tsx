@@ -3,9 +3,8 @@ import GpuCard from './GpuCard';
 import ProgressBar from '../ui/ProgressBar';
 
 // ✅ --- THIS IS THE FIX ---
-// The interface for a GpuNode is updated.
-// The 'gpus' array now has the correct properties
-// to match what GpuCard.tsx expects.
+// This interface now correctly defines the 'gpus' array
+// with the real data shape.
 interface GpuNode {
   node_name: string;
   cores_total: number;
@@ -20,13 +19,13 @@ interface GpuNode {
     memory_used_mib: number;   // Was 'memory_util_percent'
     memory_total_mib: number; // Was missing
     temperature_celsius: number;
-    power_draw_watts: number; // Was 'power_draw_watts'
+    power_draw_watts: number; // Was 'power_watts'
     power_limit_watts: number;
   }>;
 }
 
 interface NodeCardProps {
-  node: GpuNode; // This now uses the correct GNote type
+  node: GpuNode; // This now uses the correct GpuNode type
 }
 
 export default function NodeCard({ node }: NodeCardProps) {
@@ -48,7 +47,7 @@ export default function NodeCard({ node }: NodeCardProps) {
 
       {/* GPU Cards */}
       <div className="space-y-2">
-        {/* This .map() will now work. The 'gpu' object it passes
+        {/* This .map() will now work because the 'gpu' object it passes
           now has the correct shape that GpuCard expects.
         */}
         {node.gpus.map((gpu) => (

@@ -36,7 +36,7 @@ async function pollNodeForJobs(node: NodeConfig): Promise<Job[]> {
       host: node.host,
       port: node.port,
       username: node.user,
-      password: 'Eeieiwi39393', // ❗️ Same password as in cluster-state.ts
+      password: '', // ❗️ Same password as in cluster-state.ts
     });
 
     const jobResult = await ssh.execCommand(JOB_CMD);
