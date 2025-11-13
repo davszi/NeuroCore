@@ -89,16 +89,28 @@ const USERS_CMD = `who | wc -l`;
 const SLURM_CMD = `sinfo -o "%.12P %.5C %.5a %.5I %.10m %.6G" --noheader`;
 
 const STORAGE_CMD = "df -hT | grep -E 'ceph|nfs|/scratch'";
-const STORAGE_CMD_backup = `bash -c 'echo "["; first=1; for dir in /scratch/*; do
-  [ -d "$dir" ] || continue;
-  user=$(basename "$dir");
-  used=$(du -sh "$dir" 2>/dev/null | awk "{print \\$1}");
-  file_count=$(find "$dir" -type f 2>/dev/null | wc -l);
-  [ $first -eq 0 ] && echo ",";
-  first=0;
-  echo "{ \\"username\\": \\"$user\\", \\"used\\": \\"$used\\", \\"files\\": $file_count }";
-done;
-echo "]"'`;
+const STORAGE_CMD_backup = `bash -c 'echo "["; first=1; for dir in /scratch/*; do [ -d "$dir" ] || continue; user=$(basename "$dir"); used=$(du -sh "$dir" 2>/dev/null | awk "{print \$1}"); file_count=$(find "$dir" -type f 2>/dev/null | wc -l); [ $first -eq 0 ] && echo ","; first=0; echo "{ \"username\": \"$user\", \"used\": \"$used\", \"files\": $file_count }"; done; echo "]"'`;
+
+const SSH_PASSWORD = process.env.NEUROCORE_SSH_PASSWORD?.trim() || undefined;
+
+function buildSshConfig(node: NodeConfig) {
+  const config: {
+    host: string;
+    port: number;
+    username: string;
+    password?: string;
+  } = {
+    host: node.host,
+    port: node.port,
+    username: node.user,
+  };
+
+  if (SSH_PASSWORD) {
+    config.password = SSH_PASSWORD;
+  }
+
+  return config;
+}
 
 /**
  * Helper function to run commands on a remote server
@@ -109,12 +121,7 @@ async function pollNode(node: NodeConfig): Promise<PolledNodeData | null> {
 
   try {
     // Connect using the new library's syntax
-    await ssh.connect({
-      host: node.host,
-      port: node.port,
-      username: node.user,
-      password: 'Pratham@14', //  Remember to replace this!
-    });
+    await ssh.connect(buildSshConfig(node));
 
     // --- 1. Get GPU Stats ---
     // ℹThis library returns an object { stdout, stderr, code }
@@ -177,12 +184,7 @@ async function pollSlurmData(node: NodeConfig): Promise<SlurmPartition[]> {
   const slurmPartitions: SlurmPartition[] = [];
 
   try {
-    await ssh.connect({
-      host: node.host,
-      port: node.port,
-      username: node.user,
-      password: 'Pratham@14', //
-    });
+    await ssh.connect(buildSshConfig(node));
 
     const slurmResult = await ssh.execCommand(SLURM_CMD);
     if (slurmResult.code === 0 && slurmResult.stdout.trim() !== '') {
@@ -244,12 +246,7 @@ async function pollStorageData(node: NodeConfig): Promise<StorageVolume[]> {
   };
 
   try {
-    await ssh.connect({
-      host: node.host,
-      port: node.port,
-      username: node.user,
-      password: 'Pratham@14', //
-    });
+    await ssh.connect(buildSshConfig(node));
 
     const storageResult = await ssh.execCommand(STORAGE_CMD);
 

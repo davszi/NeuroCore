@@ -9,6 +9,8 @@ interface UserStorage {
   total_files: number;
 }
 
+const FILE_COUNT_FORMATTER = new Intl.NumberFormat('en-US');
+
 export default function UserStorageTable() {
   const { userStorage } = useCluster();
 
@@ -41,7 +43,9 @@ export default function UserStorageTable() {
               <tr key={user.username} className="hover:bg-gray-800">
                 <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-cyan-300">{user.username}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">{user.used_storage_space_gb.toFixed(2)} GiB</td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">{user.total_files.toLocaleString()}</td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">
+                  {FILE_COUNT_FORMATTER.format(user.total_files)}
+                </td>
               </tr>
             ))}
           </tbody> */}

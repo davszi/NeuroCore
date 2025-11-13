@@ -21,7 +21,28 @@ interface NodeConfig {
 }
 
 // ℹ️ This is the command to find real running python jobs
-const JOB_CMD = `ps -u $USER -o pid,etime,cmd --no-headers | grep 'python' | grep -v 'grep'`;
+const JOB_CMD = `ps -u $USER -ww -o pid,etime,args --no-headers | grep 'python' | grep -v 'grep'`;
+
+const SSH_PASSWORD = process.env.NEUROCORE_SSH_PASSWORD?.trim() || undefined;
+
+function buildSshConfig(node: NodeConfig) {
+  const config: {
+    host: string;
+    port: number;
+    username: string;
+    password?: string;
+  } = {
+    host: node.host,
+    port: node.port,
+    username: node.user,
+  };
+
+  if (SSH_PASSWORD) {
+    config.password = SSH_PASSWORD;
+  }
+
+  return config;
+}
 
 /**
  * Helper function to poll a node for jobs
@@ -32,12 +53,7 @@ async function pollNodeForJobs(node: NodeConfig): Promise<Job[]> {
 
   try {
     // ✅ 2. Connect using the new library's syntax
-    await ssh.connect({
-      host: node.host,
-      port: node.port,
-      username: node.user,
-      password: '', // ❗️ Same password as in cluster-state.ts
-    });
+    await ssh.connect(buildSshConfig(node));
 
     const jobResult = await ssh.execCommand(JOB_CMD);
     console.log(`Polled jobs from ${node.name}:`, jobResult);
@@ -45,15 +61,29 @@ async function pollNodeForJobs(node: NodeConfig): Promise<Job[]> {
     // ✅ 3. Check for 'stdout' property and success
     if (jobResult.code === 0 && jobResult.stdout.trim() !== '') {
       jobResult.stdout.trim().split('\n').forEach((line: string) => {
-        const parts = line.trim().split(/\s+/, 3); // Split into PID, ETIME, CMD
-        if (parts.length < 3) return;
+        const parsed = line.trim().match(/^(\S+)\s+(\S+)\s+(.*)$/);
+        if (!parsed) return;
+
+        const [, pidString, uptime, command] = parsed;
+        const ownerMatch = command.match(/--owner\s+([^\s]+)/);
+        const projectMatch = command.match(/--project\s+([^\s]+)/);
+        const modeMatch = command.match(/--mode\s+([^\s]+)/);
+
+        const owner = ownerMatch?.[1] ?? 'unknown';
+        const project = projectMatch?.[1];
+        const mode = modeMatch?.[1];
+
+        const sessionName =
+          owner !== 'unknown' && project && mode
+            ? `train:${owner}:${project}:${mode}`
+            : command.split(' ')[0].split('/').pop() || 'python_job';
 
         records.push({
           node: node.name,
-          session: parts[2].split(' ')[0].split('/').pop() || 'python_job', 
-          pid: parseInt(parts[0]),
-          uptime: parts[1],
-          log_preview: [parts[2]], // Show the full command as the "log"
+          session: sessionName,
+          pid: parseInt(pidString, 10),
+          uptime,
+          log_preview: [command], // Show the full command as the "log"
         });
       });
     }
