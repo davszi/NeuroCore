@@ -1,5 +1,6 @@
 import React, { createContext, useContext, ReactNode } from 'react';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
+
 
 // --- 1. TypeScript Interfaces ---
 
@@ -54,13 +55,14 @@ interface SlurmPartition {
   batch_jobs_running: number;
   batch_jobs_pending: number;
 }
-interface ClusterState {
+export interface ClusterState {
   last_updated_timestamp: string;
   total_power_consumption_watts: number;
   login_nodes: LoginNode[];
   storage: StorageVolume[];
   slurm_queue_info: SlurmPartition[];
-  gpu_nodes: GpuNode[]; // This now uses the fixed 'GpuNode'
+  gpu_nodes: GpuNode[]; 
+  user_storage?: UserStorage[];
 }
 interface Job {
   node: string;
@@ -73,6 +75,7 @@ interface UserStorage {
   username: string;
   used_storage_space_gb: number;
   total_files: number;
+  mount_point?: string; 
 }
 
 
@@ -173,7 +176,11 @@ export const ClusterProvider: React.FC<{ children: ReactNode }> = ({
 
   const clusterState = realState || FALLBACK_CLUSTER_STATE;
   const jobs = realJobs || FALLBACK_JOBS;
-  const userStorage = MOCK_USER_STORAGE;
+  const userStorage =
+    realState?.user_storage?.length
+      ? realState.user_storage
+      : MOCK_USER_STORAGE;
+
 
   const getJobById = (sessionId: string): Job | undefined => {
     return jobs.find((job) => job.session === sessionId);
@@ -184,6 +191,7 @@ export const ClusterProvider: React.FC<{ children: ReactNode }> = ({
     userStorage,
     jobs,
     getJobById,
+    fetchUserStorage,
     isStateLoading,
     isJobsLoading,
     stateError,
@@ -201,4 +209,18 @@ export const useCluster = () => {
     throw new Error('useCluster must be used within a ClusterProvider');
   }
   return context;
+};
+const fetchUserStorage = async (volume: string) => {
+  try {
+    const res = await fetch(`/api/cluster-state?volume=${volume}`);
+    const data: ClusterState = await res.json();
+
+    // Update SWR cache
+    mutate('/api/cluster-state', (currentData: ClusterState | undefined) => ({
+      ...currentData!,
+      user_storage: data.user_storage,
+    }), false);
+  } catch (err) {
+    console.error('Failed to fetch user storage:', err);
+  }
 };

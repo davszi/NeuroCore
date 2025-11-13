@@ -66,6 +66,14 @@ interface SlurmPartition {
   batch_jobs_running: number;
   batch_jobs_pending: number;
 }
+
+interface UserStorage {
+  username: string;
+  used_storage_space_gb: number;
+  total_files: number;
+  mount_point: string;
+}
+
 interface PolledNodeData {
   node_name: string;
   gpus: Gpu[];
@@ -81,7 +89,16 @@ const USERS_CMD = `who | wc -l`;
 const SLURM_CMD = `sinfo -o "%.12P %.5C %.5a %.5I %.10m %.6G" --noheader`;
 
 const STORAGE_CMD = "df -hT | grep -E 'ceph|nfs|/scratch'";
-const STORAGE_CMD_backup = `bash -c 'echo "["; first=1; for dir in /scratch/*; do [ -d "$dir" ] || continue; user=$(basename "$dir"); used=$(du -sh "$dir" 2>/dev/null | awk "{print \$1}"); file_count=$(find "$dir" -type f 2>/dev/null | wc -l); [ $first -eq 0 ] && echo ","; first=0; echo "{ \"username\": \"$user\", \"used\": \"$used\", \"files\": $file_count }"; done; echo "]"'`;
+const STORAGE_CMD_backup = `bash -c 'echo "["; first=1; for dir in /scratch/*; do
+  [ -d "$dir" ] || continue;
+  user=$(basename "$dir");
+  used=$(du -sh "$dir" 2>/dev/null | awk "{print \\$1}");
+  file_count=$(find "$dir" -type f 2>/dev/null | wc -l);
+  [ $first -eq 0 ] && echo ",";
+  first=0;
+  echo "{ \\"username\\": \\"$user\\", \\"used\\": \\"$used\\", \\"files\\": $file_count }";
+done;
+echo "]"'`;
 
 /**
  * Helper function to run commands on a remote server
@@ -96,7 +113,7 @@ async function pollNode(node: NodeConfig): Promise<PolledNodeData | null> {
       host: node.host,
       port: node.port,
       username: node.user,
-      password: '', //  Remember to replace this!
+      password: 'Pratham@14', //  Remember to replace this!
     });
 
     // --- 1. Get GPU Stats ---
@@ -164,7 +181,7 @@ async function pollSlurmData(node: NodeConfig): Promise<SlurmPartition[]> {
       host: node.host,
       port: node.port,
       username: node.user,
-      password: '', //
+      password: 'Pratham@14', //
     });
 
     const slurmResult = await ssh.execCommand(SLURM_CMD);
@@ -231,7 +248,7 @@ async function pollStorageData(node: NodeConfig): Promise<StorageVolume[]> {
       host: node.host,
       port: node.port,
       username: node.user,
-      password: '', //
+      password: 'Pratham@14', //
     });
 
     const storageResult = await ssh.execCommand(STORAGE_CMD);
@@ -258,13 +275,69 @@ async function pollStorageData(node: NodeConfig): Promise<StorageVolume[]> {
 }
 
 /**
+ * 4. Polls User Storage data (STORAGE_CMD_backup)
+ */
+async function pollUserStorageData(node: NodeConfig, targetDir?: string): Promise<UserStorage[]> {
+  const ssh = new NodeSSH();
+  try {
+    await ssh.connect({
+      host: node.host,
+      port: node.port,
+      username: node.user,
+      password: 'Pratham@14', 
+    });
+
+    // Directories to check
+    const dirsToCheck = targetDir
+      ? [targetDir]
+      : ['/scratch', '/home', '/windows-home'];
+
+    const allData: UserStorage[] = [];
+
+    for (const dir of dirsToCheck) {
+      // Bash command to list user storage in the given directory
+      const command = `/bin/bash -c 'echo "["; first=1; for d in ${dir}/*; do [ -d "$d" ] || continue; user=$(basename "$d"); used=$(du -sh "$d" 2>/dev/null | cut -f1); file_count=$(find "$d" -type f 2>/dev/null | wc -l); [ $first -eq 0 ] && echo ","; first=0; echo "{ \\"username\\": \\"$user\\", \\"used\\": \\"$used\\", \\"files\\": $file_count }"; done; echo "]"'`;
+
+      const result = await ssh.execCommand(command);
+      if (!result.stdout) continue;
+
+      const rawData = JSON.parse(result.stdout.trim());
+
+      function convertToGB(sizeStr: string): number {
+        const size = parseFloat(sizeStr);
+        if (sizeStr.toUpperCase().endsWith('T')) return size * 1024;
+        if (sizeStr.toUpperCase().endsWith('G')) return size;
+        if (sizeStr.toUpperCase().endsWith('M')) return size / 1024;
+        return 0;
+      }
+
+      allData.push(
+        ...rawData.map((u: any) => ({
+          username: u.username,
+          used_storage_space_gb: convertToGB(u.used),
+          total_files: u.files,
+          mount_point: dir,
+        }))
+      );
+    }
+
+    return allData;
+
+  } catch (err) {
+    console.error(`Failed to poll User Storage from ${node.name}: ${(err as Error).message}`);
+    return [];
+  } finally {
+    ssh.dispose();
+  }
+}
+
+/**
  * The main API Handler
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  
-  // 1. Read the config files
   const nodesPath = path.join(process.cwd(), '../config/nodes.yaml');
   const inventoryPath = path.join(process.cwd(), '../config/gpu_inventory.yaml');
+
   let nodesConfig, gpuInventory;
   try {
     nodesConfig = yaml.load(fs.readFileSync(nodesPath, 'utf8')) as { nodes: NodeConfig[] };
@@ -273,28 +346,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: 'Failed to read config files.', details: (e as Error).message });
   }
 
-  // 2. Poll all data sources in parallel
+  const { volume } = req.query as { volume?: string };
+  const targetDir =
+    volume === 'home'
+      ? '/home'
+      : volume === 'windows'
+      ? '/windows-home'
+      : '/scratch';
+
+  // --- Check permissions ---
+  if (targetDir === '/home' || targetDir === '/windows-home') {
+    return res.status(403).json({ 
+      error: `You don't have permission to access ${targetDir}` 
+    });
+  }
+
+  // 1. Poll GPU/login nodes, SLURM, storage
   const nodePollPromises = nodesConfig.nodes.map(pollNode);
-  // ℹ️ We assume the first node in the list can run SLURM and Storage commands
-  const slurmPromise = pollSlurmData(nodesConfig.nodes[0]); 
+  const slurmPromise = pollSlurmData(nodesConfig.nodes[0]);
   const storagePromise = pollStorageData(nodesConfig.nodes[0]);
-  
+
   const [nodeResults, slurmData, storageData] = await Promise.all([
     Promise.all(nodePollPromises),
     slurmPromise,
     storagePromise,
   ]);
-  
+
   const polledNodes = nodeResults.filter((r): r is PolledNodeData => r !== null);
 
-  // 3. Split nodes into GPU nodes and Login nodes
+  // 2. Poll user storage only for /scratch
+  const userStorageData = await pollUserStorageData(nodesConfig.nodes[0], '/scratch');
+
+  // 3. Split nodes into GPU and login nodes
   const liveGpuNodes: GpuNode[] = [];
   const liveLoginNodes: LoginNode[] = [];
 
   polledNodes.forEach((nodeData) => {
     const staticData = gpuInventory.nodes[nodeData.node_name] || gpuInventory.defaults;
-    
-    // We identify GPU nodes as any node that successfully returned GPU data
     if (nodeData.gpus && nodeData.gpus.length > 0) {
       liveGpuNodes.push({
         ...staticData,
@@ -305,7 +393,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         gpus: nodeData.gpus,
       });
     } else {
-      // No GPUs found? We'll call it a Login Node.
       liveLoginNodes.push({
         node_name: nodeData.node_name,
         cores_total: staticData.cores_total,
@@ -317,20 +404,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   });
 
-  // 4. Calculate total power
+  // 4. Calculate total GPU power
   const totalPower = liveGpuNodes.reduce((acc: number, node: GpuNode) => {
-      const nodePower = (node.gpus || []).reduce((sum: number, gpu: Gpu) => {
-          return sum + (gpu.power_draw_watts || 0);
-      }, 0);
-      return acc + nodePower;
+    return acc + (node.gpus || []).reduce((sum: number, gpu: Gpu) => sum + (gpu.power_draw_watts || 0), 0);
   }, 0);
 
-  // 5. Build the final API response
+  // 5. Build final cluster state
   const clusterState = {
     last_updated_timestamp: new Date().toISOString(),
     total_power_consumption_watts: totalPower,
-    
-    // --- REAL DATA ---
     login_nodes: liveLoginNodes,
     storage: storageData.length > 0 ? storageData : [
       { mount_point: "CEPH:/home (Fallback)", used_tib: 0, total_tib: 0, usage_percent: 0 }
@@ -338,7 +420,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     slurm_queue_info: slurmData.length > 0 ? slurmData : [
       { partition: 'cpu (Fallback)', cpu_free: 0, cpu_allocated: 0, mem_free_gb: 0, mem_allocated_gb: 0, gpu_free: null, gpu_allocated: null, interactive_jobs_running: 0, interactive_jobs_pending: 0, batch_jobs_running: 0, batch_jobs_pending: 0 }
     ],
-    gpu_nodes: liveGpuNodes,
+    user_storage: userStorageData.map((u) => ({
+      username: u.username,
+      used_storage_space_gb: u.used_storage_space_gb,
+      total_files: u.total_files,
+      mount_point: u.mount_point,
+    })),
   };
 
   res.status(200).json(clusterState);

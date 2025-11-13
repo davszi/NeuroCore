@@ -10,13 +10,20 @@ interface UserStorage {
 }
 
 export default function UserStorageTable() {
-  // 3. 🎁 Get the static 'userStorage' data from the context
-  //    (This is the mock data for 'aansari', 'aasteine', etc.)
   const { userStorage } = useCluster();
+
+  console.log('--- User Storage from Context ---');
+  console.log(userStorage);
+  <div>
+    <h3>Debug User Storage:</h3>
+    <pre>{JSON.stringify(userStorage, null, 2)}</pre>
+  </div>
+
+
 
   return (
     <div className="bg-gray-900 shadow-md rounded-lg overflow-hidden border border-gray-700">
-      <div className="overflow-x-auto">
+      <div className="bg-gray-900 shadow-md rounded-lg border border-gray-700">
         <table className="min-w-full divide-y divide-gray-700">
           
           {/* --- Table Header --- */}
@@ -29,12 +36,21 @@ export default function UserStorageTable() {
           </thead>
 
           {/* --- Table Body --- */}
-          <tbody className="bg-gray-900 divide-y divide-gray-800">
+          {/* <tbody className="bg-gray-900 divide-y divide-gray-800">
             {userStorage.map((user) => (
               <tr key={user.username} className="hover:bg-gray-800">
                 <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-cyan-300">{user.username}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">{user.used_storage_space_gb.toFixed(2)} GiB</td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">{user.total_files.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody> */}
+          <tbody className="bg-gray-900 divide-y divide-gray-800">
+            {userStorage.map((user) => (
+              <tr key={user.username} className="hover:bg-gray-800">
+                <td>{user.username}</td>
+                <td>{Number(user.used_storage_space_gb ?? 0).toFixed(2)} GiB</td>
+                <td>{Number(user.total_files ?? 0).toLocaleString()}</td>
               </tr>
             ))}
           </tbody>
