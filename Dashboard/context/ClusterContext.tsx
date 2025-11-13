@@ -54,13 +54,14 @@ interface SlurmPartition {
   batch_jobs_running: number;
   batch_jobs_pending: number;
 }
-interface ClusterState {
+export interface ClusterState {
   last_updated_timestamp: string;
   total_power_consumption_watts: number;
   login_nodes: LoginNode[];
   storage: StorageVolume[];
   slurm_queue_info: SlurmPartition[];
-  gpu_nodes: GpuNode[]; // This now uses the fixed 'GpuNode'
+  gpu_nodes: GpuNode[]; 
+  user_storage?: UserStorage[];
 }
 interface Job {
   node: string;
@@ -76,6 +77,7 @@ interface UserStorage {
   username: string;
   used_storage_space_gb: number;
   total_files: number;
+  mount_point?: string; 
 }
 
 
