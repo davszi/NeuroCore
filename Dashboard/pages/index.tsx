@@ -7,7 +7,7 @@ import StorageVolumeCard from '@/components/dashboard/StorageVolumeCard';
 import UserStorageTable from '@/components/dashboard/UserStorageTable';
 
 export default function RessourcesPage() {
-  const { clusterState } = useCluster();
+  const { clusterState, nodesState } = useCluster();
   const isClient = useClientMounted();
 
   return (
@@ -38,7 +38,7 @@ export default function RessourcesPage() {
         {/* We can re-use the LoginNodeCard component for our Login Nodes */}
         <h3 className="text-lg font-semibold text-white mb-3">Login Nodes</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          {clusterState.login_nodes.map((node) => (
+          {nodesState.login_nodes.map((node) => (
             <LoginNodeCard key={node.node_name} node={node} />
           ))}
         </div>
@@ -46,7 +46,7 @@ export default function RessourcesPage() {
         {/* And the NodeCard component for our GPU Compute Nodes */}
         <h3 className="text-lg font-semibold text-white mb-3">Compute Nodes</h3>
         <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-          {clusterState.gpu_nodes.map((node) => (
+          {nodesState.gpu_nodes.map((node) => (
             <NodeCard key={node.node_name} node={node} />
           ))}
         </div>

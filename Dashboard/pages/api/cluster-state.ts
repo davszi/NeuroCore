@@ -146,7 +146,7 @@ async function pollNode(node: NodeConfig): Promise<PolledNodeData | null> {
     return nodeData;
 
   } catch (e) {
-    console.error(`Failed to poll node ${node.name}: ${(e as Error).message}`);
+    // console.error(`Failed to poll node ${node.name}: ${(e as Error).message}`);
     ssh.dispose(); 
     return null; 
   }
@@ -205,7 +205,7 @@ async function pollSlurmData(node: NodeConfig): Promise<SlurmPartition[]> {
     ssh.dispose();
     return slurmPartitions;
   } catch (e) {
-    console.error(`Failed to poll SLURM from ${node.name}: ${(e as Error).message}`);
+    // console.error(`Failed to poll SLURM from ${node.name}: ${(e as Error).message}`);
     ssh.dispose();
     return [];
   }
@@ -251,7 +251,7 @@ async function pollStorageData(node: NodeConfig): Promise<StorageVolume[]> {
     ssh.dispose();
     return storageVolumes;
   } catch (e) {
-    console.error(`Failed to poll Storage from ${node.name}: ${(e as Error).message}`);
+    // console.error(`Failed to poll Storage from ${node.name}: ${(e as Error).message}`);
     ssh.dispose();
     return [];
   }

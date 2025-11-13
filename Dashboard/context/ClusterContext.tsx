@@ -143,6 +143,10 @@ interface ClusterContextType {
   isJobsLoading: boolean;
   stateError: any;
   jobsError: any;
+
+  nodesState: ClusterState;
+  isNodesLoading: boolean;
+  nodesError: any;
 }
 
 const ClusterContext = createContext<ClusterContextType | undefined>(undefined);
@@ -171,9 +175,20 @@ export const ClusterProvider: React.FC<{ children: ReactNode }> = ({
     shouldRetryOnError: false,
   });
 
+  const {
+    data: realNodes,
+    error: nodesError,
+    isLoading: isNodesLoading,
+  } = useSWR<ClusterState>('/api/node-state', fetcher, {
+    refreshInterval: 5000, 
+    revalidateOnFocus: false,
+    shouldRetryOnError: false,
+  });
+
   const clusterState = realState || FALLBACK_CLUSTER_STATE;
   const jobs = realJobs || FALLBACK_JOBS;
   const userStorage = MOCK_USER_STORAGE;
+  const nodesState = realNodes || FALLBACK_CLUSTER_STATE;
 
   const getJobById = (sessionId: string): Job | undefined => {
     return jobs.find((job) => job.session === sessionId);
@@ -188,6 +203,11 @@ export const ClusterProvider: React.FC<{ children: ReactNode }> = ({
     isJobsLoading,
     stateError,
     jobsError,
+
+    // Nodes state
+    nodesState,
+    isNodesLoading,
+    nodesError
   };
 
   return (

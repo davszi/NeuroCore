@@ -36,11 +36,10 @@ async function pollNodeForJobs(node: NodeConfig): Promise<Job[]> {
       host: node.host,
       port: node.port,
       username: node.user,
-      password: '', // ❗️ Same password as in cluster-state.ts
+      password: 'phie9aw7Lee7', // ❗️ Same password as in cluster-state.ts
     });
 
     const jobResult = await ssh.execCommand(JOB_CMD);
-    console.log(`Polled jobs from ${node.name}:`, jobResult);
 
     // ✅ 3. Check for 'stdout' property and success
     if (jobResult.code === 0 && jobResult.stdout.trim() !== '') {
