@@ -1,9 +1,8 @@
 import { useCluster } from '@/context/ClusterContext';
 import React from 'react';
-import { HiOutlineRefresh } from 'react-icons/hi'; // For loading spinner
+import { HiOutlineRefresh } from 'react-icons/hi';
 
 // A simple component to render the job status with a colored dot
-// Since discover_jobs.py only finds running jobs, we hardcode this to "Running"
 const JobStatusIndicator: React.FC = () => {
   return (
     <div className="flex items-center">
@@ -30,7 +29,7 @@ export default function JobTable() {
   if (jobsError) {
     return (
       <div className="flex items-center justify-center h-48 bg-gray-900 rounded-lg">
-        <span className="text-red-400">Error loading jobs. Displaying fallback data.</span>
+        <span className="text-red-400">Error loading jobs.</span>
       </div>
     );
   }
@@ -39,7 +38,7 @@ export default function JobTable() {
   if (!jobs || jobs.length === 0) {
      return (
       <div className="flex items-center justify-center h-48 bg-gray-900 rounded-lg">
-        <span className="text-gray-400">No active jobs found.</span>
+        <span className="text-gray-400">No active GPU jobs found.</span>
       </div>
     );
   }
@@ -56,10 +55,10 @@ export default function JobTable() {
               {[
                 'Status',
                 'Node',
-                'Session Name',
+                'User',
                 'PID',
-                'Uptime',
-                'Latest Log',
+                'GPU Memory',
+                'Command Preview',
               ].map((header) => (
                 <th
                   key={header}
@@ -76,7 +75,7 @@ export default function JobTable() {
           <tbody className="bg-gray-900 divide-y divide-gray-800">
             {jobs.map((job) => (
               <tr 
-                key={`${job.node}-${job.session}`}
+                key={job.pid}
                 className="hover:bg-gray-800 transition-colors duration-150"
               >
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
@@ -86,18 +85,16 @@ export default function JobTable() {
                   {job.node}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-cyan-300">
-                  {job.session}
+                  {job.user}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-300">
                   {job.pid}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
-                  {job.uptime}
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-300">
+                  {job.gpu_memory_usage_mib.toFixed(0)} MiB
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-400">
-                  {job.log_preview && job.log_preview.length > 0
-                    ? job.log_preview[job.log_preview.length - 1]
-                    : 'No logs'}
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-400 truncate max-w-sm">
+                  {job.process_name}
                 </td>
               </tr>
             ))}

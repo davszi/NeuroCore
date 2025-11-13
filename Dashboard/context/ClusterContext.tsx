@@ -68,6 +68,9 @@ interface Job {
   pid: number;
   uptime: string;
   log_preview: string[];
+  user: string; // The user running the job (e.g., "tg69")
+  process_name: string; // The full command path
+  gpu_memory_usage_mib: number; // The new data column
 }
 interface UserStorage {
   username: string;
@@ -115,7 +118,17 @@ const FALLBACK_CLUSTER_STATE: ClusterState = {
   ],
 };
 const FALLBACK_JOBS: Job[] = [
-  { node: 'mock-node', session: 'train:mock:fallback:lora', pid: 123, uptime: '0s', log_preview: ['Waiting for connection...'] }
+  { 
+    node: 'mock-node', 
+    session: 'train:mock:fallback:lora', 
+    pid: 123, 
+    uptime: '0s', 
+    log_preview: ['Waiting for connection...'],
+    // --- New Fields Added ---
+    user: 'mock-user', 
+    process_name: '/scratch/mock-user/fallback/job.py', 
+    gpu_memory_usage_mib: 0 
+  }
 ];
 const MOCK_USER_STORAGE: UserStorage[] = [
   { username: 'aansari', used_storage_space_gb: 72.05, total_files: 71135 },

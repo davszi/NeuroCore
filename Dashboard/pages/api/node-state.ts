@@ -4,6 +4,7 @@ import path from 'path';
 import yaml from 'js-yaml';
 import { NodeSSH } from 'node-ssh';
 
+// --- All interfaces are unchanged ---
 interface Gpu {
   gpu_id: number;
   gpu_name: string;
@@ -41,6 +42,7 @@ interface NodeDataType {
   gpus?: Gpu[];
 }
 
+// --- All commands are unchanged ---
 const GPU_CMD = `nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit --format=csv,noheader,nounits`;
 const CORES_CMD = `nproc`;
 const MEM_CMD = `cat /proc/meminfo`; 
@@ -62,11 +64,12 @@ async function pollNode(
       host: node.host,
       port: node.port,
       username: node.user,
-      privateKey: privateKey
+      privateKey: privateKey,
     });
     console.log(`[node-state] [${node.name}] Connected.`);
 
     // --- 2. Execute Commands Separately ---
+    // (This entire block is unchanged and works)
 
     // --- GPU ---
     try {
@@ -165,17 +168,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   
   console.log(`\n\n--- [node-state handler] Received request for /api/node-state at ${new Date().toISOString()} ---`);
   
-  let privateKey: string;
+  let privateKey: string | undefined;
   let nodesConfig, gpuInventory;
 
   try {
-    // 1. Read the SSH private key
-    console.log("[node-state handler] Reading SSH private key...");
-    const homeDir = process.env.HOME || process.env.USERPROFILE;
-    if (!homeDir) { throw new Error("Could not find HOME directory."); }
-    const keyPath = path.join(homeDir, '.ssh', 'id_rsa');
-    privateKey = fs.readFileSync(keyPath, 'utf-8');
-    console.log("[node-state handler] Successfully read private key.");
+    // --- [CHANGE 2 of 2] ---
+    // 1. Read the SSH private key from Environment Variables
+    console.log("[node-state handler] Reading SSH private key from environment...");
+    
+    privateKey = process.env.SSH_PRIVATE_KEY; 
+    
+    if (!privateKey) {
+      throw new Error("Missing SSH_PRIVATE_KEY environment variable. Cannot authenticate. Did you create .env.local and restart the server?");
+    }
+
+    // This is CRITICAL. Environment variables (especially from .env.local) 
+    // mess up line breaks. This line fixes the key's formatting.
+    privateKey = privateKey.replace(/\\n/g, '\n');
+
+    console.log("[node-state handler] Successfully loaded private key from environment.");
+    // --- [ END CHANGE ] ---
     
     // 2. Read the config files
     // Using the '../config/' path from your successful logs.
@@ -193,6 +205,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const error = e as Error;
     console.error("!!! [node-state handler] ❌ CRITICAL ERROR IN MAIN HANDLER (SETUP) !!!");
     console.error(`!!! Error Message: ${error.message}`);
+    console.error(`!!! Error Stack: ${error.stack}`);
     return res.status(500).json({ error: 'Failed to read SSH key or config files.', details: error.message });
   }
 

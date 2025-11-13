@@ -275,7 +275,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // 2. Poll all data sources in parallel
   const nodePollPromises = nodesConfig.nodes.map(pollNode);
-  // ℹ️ We assume the first node in the list can run SLURM and Storage commands
   const slurmPromise = pollSlurmData(nodesConfig.nodes[0]); 
   const storagePromise = pollStorageData(nodesConfig.nodes[0]);
   
