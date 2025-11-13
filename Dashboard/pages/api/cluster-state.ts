@@ -281,7 +281,7 @@ async function pollUserStorageData(node: NodeConfig, targetDir?: string): Promis
       host: node.host,
       port: node.port,
       username: node.user,
-      password: 'Pratham@14', 
+      password: '', 
     });
 
     // Directories to check
