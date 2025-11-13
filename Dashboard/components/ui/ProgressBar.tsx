@@ -6,10 +6,8 @@ interface ProgressBarProps {
 }
 
 export default function ProgressBar({ label, value }: ProgressBarProps) {
-  // --- THIS IS THE FIX ---
   // 1. Create a safe value. If 'value' is undefined, null, or NaN, default to 0.
   const safeValue = value || 0;
-  // --- END OF FIX ---
 
   // Determine color based on value
   let barColor = 'bg-blue-500'; // Default

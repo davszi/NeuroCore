@@ -2,9 +2,6 @@ import React from 'react';
 import GpuCard from './GpuCard';
 import ProgressBar from '../ui/ProgressBar';
 
-// ✅ --- THIS IS THE FIX ---
-// This interface now correctly defines the 'gpus' array
-// with the real data shape.
 interface GpuNode {
   node_name: string;
   cores_total: number;
@@ -25,7 +22,7 @@ interface GpuNode {
 }
 
 interface NodeCardProps {
-  node: GpuNode; // This now uses the correct GpuNode type
+  node: GpuNode; 
 }
 
 export default function NodeCard({ node }: NodeCardProps) {
@@ -47,9 +44,6 @@ export default function NodeCard({ node }: NodeCardProps) {
 
       {/* GPU Cards */}
       <div className="space-y-2">
-        {/* This .map() will now work because the 'gpu' object it passes
-          now has the correct shape that GpuCard expects.
-        */}
         {node.gpus.map((gpu) => (
           <GpuCard key={gpu.gpu_id} gpu={gpu} />
         ))}

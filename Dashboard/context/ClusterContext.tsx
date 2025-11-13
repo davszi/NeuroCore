@@ -1,21 +1,19 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import useSWR from 'swr';
 
-// --- 1. TypeScript Interfaces ---
 
 // and the props expected by 'GpuCard.tsx'
 interface Gpu {
   gpu_id: number;
   gpu_name: string;
   utilization_percent: number;
-  memory_used_mib: number;   // Was 'memory_util_percent'
-  memory_total_mib: number; // Was missing
+  memory_used_mib: number;  
+  memory_total_mib: number; 
   temperature_celsius: number;
-  power_draw_watts: number; // Was 'power_watts'
-  power_limit_watts: number; // This was missing but GpuCard expects it
+  power_draw_watts: number;
+  power_limit_watts: number; 
 }
 
-// This now uses the correct 'Gpu' interface
 interface GpuNode {
   node_name: string;
   cores_total: number;
@@ -23,10 +21,9 @@ interface GpuNode {
   cpu_util_percent: number;
   mem_util_percent: number;
   gpu_summary_name: string;
-  gpus: Gpu[]; // This now correctly uses the fixed 'Gpu' interface
+  gpus: Gpu[]; 
 }
 
-// --- (Rest of the interfaces are unchanged) ---
 interface LoginNode {
   node_name: string;
   cores_total: number;
@@ -69,9 +66,9 @@ interface Job {
   pid: number;
   uptime: string;
   log_preview: string[];
-  user: string; // The user running the job (e.g., "tg69")
-  process_name: string; // The full command path
-  gpu_memory_usage_mib: number; // The new data column
+  user: string; 
+  process_name: string; 
+  gpu_memory_usage_mib: number; 
 }
 interface UserStorage {
   username: string;
@@ -82,7 +79,6 @@ interface UserStorage {
 
 
 // --- 2. Fallback Mock Data ---
-// ℹ️ This data must ALSO match the new interfaces
 const FALLBACK_CLUSTER_STATE: ClusterState = {
   last_updated_timestamp: "2025-01-01T00:00:00Z",
   total_power_consumption_watts: 0,
@@ -104,15 +100,14 @@ const FALLBACK_CLUSTER_STATE: ClusterState = {
       mem_util_percent: 0, 
       gpu_summary_name: 'Mock GPU', 
       gpus: [
-        // ✅ --- FALLBACK DATA IS NOW FIXED ---
         { 
           gpu_id: 0, 
           gpu_name: 'Mock H200', 
           utilization_percent: 0, 
-          memory_used_mib: 0,     // Was 'memory_util_percent'
+          memory_used_mib: 0,    
           memory_total_mib: 0,
           temperature_celsius: 0, 
-          power_draw_watts: 0,    // Was 'power_watts'
+          power_draw_watts: 0,   
           power_limit_watts: 0 
         },
       ],
@@ -126,7 +121,6 @@ const FALLBACK_JOBS: Job[] = [
     pid: 123, 
     uptime: '0s', 
     log_preview: ['Waiting for connection...'],
-    // --- New Fields Added ---
     user: 'mock-user', 
     process_name: '/scratch/mock-user/fallback/job.py', 
     gpu_memory_usage_mib: 0 
@@ -138,9 +132,6 @@ const MOCK_USER_STORAGE: UserStorage[] = [
   { username: 'abthomas', used_storage_space_gb: 0.0, total_files: 1 },
 ];
 
-
-// --- 3. React Context Setup ---
-// (No changes needed here)
 
 const fetcher = (url: string) => fetch(url).then((res) => {
   if (!res.ok) {

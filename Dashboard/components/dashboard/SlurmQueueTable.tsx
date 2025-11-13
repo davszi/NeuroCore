@@ -2,7 +2,6 @@ import React from 'react';
 import { useCluster } from '@/context/ClusterContext';
 import { HiOutlineRefresh } from 'react-icons/hi';
 
-// 1. 🧠 Define the type for the Slurm data.
 //    This matches the 'SlurmPartition' interface in your ClusterContext.tsx
 interface SlurmPartition {
   partition: string;
@@ -14,17 +13,13 @@ interface SlurmPartition {
   mem_allocated_gb: number;
 }
 
-// 2. 🖥️ Create the component
 export default function SlurmQueueTable() {
-  // 3. 🎁 Get the data and loading state from the context
   const { clusterState, isStateLoading, stateError } = useCluster();
 
-  // Helper function to render a cell, showing '-' for null/undefined
   const renderCell = (value: number | string | null | undefined) => {
     return value === null || value === undefined ? '-' : value;
   };
 
-  // 4. ⏳ Show a loading state while SWR is fetching
   if (isStateLoading && !stateError) {
     return (
       <div className="flex items-center justify-center h-32 bg-gray-900 rounded-lg border border-gray-700">
@@ -34,7 +29,6 @@ export default function SlurmQueueTable() {
     );
   }
 
-  // 5. 📊 Render the table with the data
   return (
     <div className="bg-gray-900 shadow-md rounded-lg overflow-hidden border border-gray-700">
       <div className="overflow-x-auto">
