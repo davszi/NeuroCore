@@ -45,14 +45,13 @@ export default function RessourcesPage() {
 
       {/* --- 2. Nodes Section --- */}
       <div>
-        <h3 className="text-lg font-semibold text-white mb-3">Login Nodes</h3>
+        <h3 className="text-lg font-semibold text-white mb-3">Compute Nodes</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           {nodesState.login_nodes?.map((node) => (
             <LoginNodeCard key={node.node_name} node={node} />
           ))}
         </div>
 
-        <h3 className="text-lg font-semibold text-white mb-3">Compute Nodes</h3>
         <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
           {(nodesState?.gpu_nodes ?? []).map((node) => (
             <NodeCard key={node.node_name} node={node} />

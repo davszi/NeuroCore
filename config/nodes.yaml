@@ -3,16 +3,16 @@ nodes:
   - name: "cloud-243" # This 'name' is for the UI
     host: "cloud-243.rz.tu-clausthal.de" # This is the REAL address
     port: 22
-    user: "mw86" # Your Uni-ID
+    user: "" # Your Uni-ID
   - name: "cloud-244"
     host: "cloud-244.rz.tu-clausthal.de"
     port: 22
-    user: "mw86"
+    user: ""
   - name: "cloud-247"
     host: "cloud-247.rz.tu-clausthal.de"
     port: 22
-    user: "mw86"
+    user: ""
   - name: "cloud-248"
     host: "cloud-248.rz.tu-clausthal.de"
     port: 22
-    user: "mw86"
+    user: ""

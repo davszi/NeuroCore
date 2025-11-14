@@ -46,18 +46,17 @@ const STORAGE_CMD = "df -hT | grep -E 'ceph|nfs|/scratch'";
  */
 async function pollSlurmData(
   node: NodeConfig,
-  privateKey: string
+  password: string
 ): Promise<SlurmPartition[]> {
   const ssh = new NodeSSH();
   const slurmPartitions: SlurmPartition[] = [];
 
   try {
-    // Connect using the private key
     await ssh.connect({
       host: node.host,
       port: node.port,
       username: node.user,
-      privateKey: privateKey
+      password: ""
     });
 
     const slurmResult = await ssh.execCommand(SLURM_CMD);
@@ -74,12 +73,14 @@ async function pollSlurmData(
         const memFree = (totalMemMb / 1024) - memAllocated;
         let gpuAllocated: number | null = null;
         let gpuFree: number | null = null;
-        if(parts.length >= 6 && parts[5].includes('gpu:')) {
+
+        if (parts.length >= 6 && parts[5].includes('gpu:')) {
           try {
             gpuAllocated = parseInt(parts[5].split(':').pop() || '0');
-            gpuFree = null; // sinfo doesn't easily show free
+            gpuFree = null;
           } catch { gpuAllocated = null; }
         }
+
         slurmPartitions.push({
           partition: parts[0],
           cpu_free: idleCpus,
@@ -88,16 +89,17 @@ async function pollSlurmData(
           gpu_allocated: gpuAllocated,
           mem_free_gb: Math.round(memFree),
           mem_allocated_gb: Math.round(memAllocated),
-          interactive_jobs_running: 0, // ℹ️ Mocked, sinfo doesn't show this
+          interactive_jobs_running: 0,
           interactive_jobs_pending: 0,
           batch_jobs_running: 0,
           batch_jobs_pending: 0,
         });
       });
     }
+
     ssh.dispose();
-    console.log(`[cluster-state] ✅ Successfully polled SLURM.`);
     return slurmPartitions;
+
   } catch (e) {
     console.error(`[cluster-state] ❌ Failed to poll SLURM from ${node.name}: ${(e as Error).message}`);
     ssh.dispose();
@@ -110,7 +112,7 @@ async function pollSlurmData(
  */
 async function pollStorageData(
   node: NodeConfig,
-  privateKey: string
+  password: string
 ): Promise<StorageVolume[]> {
   const ssh = new NodeSSH();
   const storageVolumes: StorageVolume[] = [];
@@ -124,12 +126,11 @@ async function pollStorageData(
   };
 
   try {
-    // Connect using the private key
     await ssh.connect({
       host: node.host,
       port: node.port,
       username: node.user,
-      privateKey: privateKey
+      password: ""
     });
 
     const storageResult = await ssh.execCommand(STORAGE_CMD);
@@ -139,7 +140,7 @@ async function pollStorageData(
         const parts = line.trim().split(/\s+/);
         if (parts.length < 7) return;
         storageVolumes.push({
-          mount_point: parts[6], 
+          mount_point: parts[6],
           total_tib: parseToTib(parts[2]),
           used_tib: parseToTib(parts[3]),
           usage_percent: parseFloat(parts[5].replace('%', '')),
@@ -147,8 +148,8 @@ async function pollStorageData(
       });
     }
     ssh.dispose();
-    console.log(`[cluster-state] ✅ Successfully polled Storage.`);
     return storageVolumes;
+
   } catch (e) {
     console.error(`[cluster-state] ❌ Failed to poll Storage from ${node.name}: ${(e as Error).message}`);
     ssh.dispose();
@@ -161,20 +162,18 @@ async function pollStorageData(
  */
 async function pollUserStorageData(
   node: NodeConfig,
-  privateKey: string,
+  password: string,
   targetDir?: string
 ): Promise<UserStorage[]> {
   const ssh = new NodeSSH();
   try {
-    // Connect using the private key
     await ssh.connect({
       host: node.host,
       port: node.port,
       username: node.user,
-      privateKey: privateKey
+      password: ""
     });
 
-    // Directories to check
     const dirsToCheck = targetDir
       ? [targetDir]
       : ['/scratch', '/home', '/windows-home'];
@@ -182,7 +181,6 @@ async function pollUserStorageData(
     const allData: UserStorage[] = [];
 
     for (const dir of dirsToCheck) {
-      // Bash command to list user storage in the given directory
       const command = `/bin/bash -c 'echo "["; first=1; for d in ${dir}/*; do [ -d "$d" ] || continue; user=$(basename "$d"); used=$(du -sh "$d" 2>/dev/null | cut -f1); file_count=$(find "$d" -type f 2>/dev/null | wc -l); [ $first -eq 0 ] && echo ","; first=0; echo "{ \\"username\\": \\"$user\\", \\"used\\": \\"$used\\", \\"files\\": $file_count }"; done; echo "]"'`;
 
       const result = await ssh.execCommand(command);
@@ -207,7 +205,7 @@ async function pollUserStorageData(
         }))
       );
     }
-    console.log(`[cluster-state] ✅ Successfully polled User Storage.`);
+
     return allData;
 
   } catch (err) {
@@ -222,66 +220,47 @@ async function pollUserStorageData(
  * The main API Handler
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  
-  console.log(`\n\n--- [cluster-state handler] Received request for /api/cluster-state at ${new Date().toISOString()} ---`);
-  
-  let privateKey: string | undefined;
+
+  console.log(`\n\n--- [cluster-state handler] Received request @ ${new Date().toISOString()} ---`);
+
+  let password = ""; // <-- direct password
   let nodesConfig;
 
   try {
-    // 1. Read the SSH private key from Environment Variables
-    console.log("[cluster-state handler] Reading SSH private key from environment...");
-    privateKey = process.env.SSH_PRIVATE_KEY; 
-    if (!privateKey) {
-      throw new Error("Missing SSH_PRIVATE_KEY environment variable. Cannot authenticate.");
-    }
-    privateKey = privateKey.replace(/\\n/g, '\n');
-    console.log("[cluster-state handler] Successfully loaded private key.");
-
-    // 2. Read the config file
+    // Read ./config/nodes.yaml
     const nodesPath = path.join(process.cwd(), '../config/nodes.yaml');
-    console.log(`[cluster-state handler] Reading nodes config from: ${nodesPath}`);
     nodesConfig = yaml.load(fs.readFileSync(nodesPath, 'utf8')) as { nodes: NodeConfig[] };
 
   } catch (e) {
-    console.error(`[cluster-state handler] ❌ CRITICAL ERROR IN MAIN HANDLER (SETUP) !!!`);
-    console.error(`!!! Error Message: ${(e as Error).message}`);
-    return res.status(500).json({ error: 'Failed to read config or key.', details: (e as Error).message });
+    return res.status(500).json({ error: 'Failed to load config.', details: (e as Error).message });
   }
 
   const { volume } = req.query as { volume?: string };
   const targetDir =
-    volume === 'home'
-      ? '/home'
-      : volume === 'windows'
-      ? '/windows-home'
-      : '/scratch';
+    volume === 'home' ? '/home'
+    : volume === 'windows' ? '/windows-home'
+    : '/scratch';
 
-  // --- Check permissions ---
   if (targetDir === '/home' || targetDir === '/windows-home') {
-    return res.status(403).json({ 
-      error: `You don't have permission to access ${targetDir}` 
+    return res.status(403).json({
+      error: `You don't have permission to access ${targetDir}`
     });
   }
 
-  // Poll all cluster-wide data from the head node
   const headNode = nodesConfig.nodes[0];
-  const slurmPromise = pollSlurmData(headNode, privateKey);
-  const storagePromise = pollStorageData(headNode, privateKey);
-  const userStoragePromise = pollUserStorageData(headNode, privateKey, '/scratch');
 
-  const [ slurmData, storageData, userStorageData ] = await Promise.all([
-    slurmPromise,
-    storagePromise,
-    userStoragePromise,
+  const [slurmData, storageData, userStorageData] = await Promise.all([
+    pollSlurmData(headNode, password),
+    pollStorageData(headNode, password),
+    pollUserStorageData(headNode, password, '/scratch'),
   ]);
 
   const clusterState = {
     last_updated_timestamp: new Date().toISOString(),
-    storage: storageData.length > 0 ? storageData : [
+    storage: storageData.length ? storageData : [
       { mount_point: "CEPH:/home (Fallback)", used_tib: 0, total_tib: 0, usage_percent: 0 }
     ],
-    slurm_queue_info: slurmData.length > 0 ? slurmData : [
+    slurm_queue_info: slurmData.length ? slurmData : [
       { partition: 'cpu (Fallback)', cpu_free: 0, cpu_allocated: 0, mem_free_gb: 0, mem_allocated_gb: 0, gpu_free: null, gpu_allocated: null, interactive_jobs_running: 0, interactive_jobs_pending: 0, batch_jobs_running: 0, batch_jobs_pending: 0 }
     ],
     user_storage: userStorageData.map((u) => ({
@@ -292,6 +271,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })),
   };
 
-  console.log(`[cluster-state handler] Sending successful 200 response.`);
   res.status(200).json(clusterState);
 }
