@@ -39,6 +39,7 @@ interface NodeDataType {
   mem_util_percent?: number;
   gpu_summary_name?: string;
   active_users?: number;
+  active_usernames?: string[];
   gpus?: Gpu[];
 }
 
@@ -47,6 +48,7 @@ const GPU_CMD = `nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,m
 const CORES_CMD = `nproc`;
 const MEM_CMD = `cat /proc/meminfo`;
 const USERS_CMD = `who | wc -l`;
+const USERS_LIST_CMD = `who | awk '{print $1}'`;
 
 // --- Polling a single node ---
 async function pollNode(node: NodeConfig, password: string): Promise<NodeDataType | null> {
@@ -59,7 +61,7 @@ async function pollNode(node: NodeConfig, password: string): Promise<NodeDataTyp
       host: node.host,
       port: node.port,
       username: node.user,
-      password: "",
+      password: "Pratham@14",
     });
     console.log(`[node-state] [${node.name}] Connected.`);
 
@@ -111,11 +113,30 @@ async function pollNode(node: NodeConfig, password: string): Promise<NodeDataTyp
       }
     } catch (e) { console.error(`[node-state] [${node.name}] MEM_CMD failed.`); }
 
-    // Active users
-    try {
-      const usersResult = await ssh.execCommand(USERS_CMD);
-      if (usersResult.code === 0) nodeData.active_users = parseInt(usersResult.stdout.trim());
-    } catch (e) { console.error(`[node-state] [${node.name}] USERS_CMD failed.`); }
+    // Active users (count)
+      try {
+        const usersResult = await ssh.execCommand(USERS_CMD);
+        if (usersResult.code === 0) {
+          nodeData.active_users = parseInt(usersResult.stdout.trim());
+        }
+      } catch (e) { 
+        console.error(`[node-state] [${node.name}] USERS_CMD failed.`); 
+      }
+
+      // Active usernames (list)
+      try {
+        const usersListResult = await ssh.execCommand(USERS_LIST_CMD);
+        if (usersListResult.code === 0) {
+          nodeData.active_usernames = usersListResult.stdout
+            .trim()
+            .split('\n')
+            .map(u => u.trim())
+            .filter(Boolean);
+        }
+      } catch (e) {
+        console.error(`[node-state] [${node.name}] USERS_LIST_CMD failed.`);
+      }
+
 
     ssh.dispose();
     return nodeData;
@@ -163,6 +184,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         cpu_util_percent: mergedData.cpu_util_percent || 0,
         mem_util_percent: mergedData.mem_util_percent || 0,
         active_users: mergedData.active_users || 0,
+        active_usernames: mergedData.active_usernames || [],
       });
     }
   });

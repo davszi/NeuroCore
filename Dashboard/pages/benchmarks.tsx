@@ -41,7 +41,7 @@ export default function BenchmarksPage() {
       {/* --- Section 1: Performance Benchmarks --- */}
       <div>
         <h2 className="text-2xl font-semibold text-white">
-          Performance Benchmarks (Are our GPUs still doing well?)
+          Performance Benchmarks 
         </h2>
         <p className="text-base text-gray-400 mt-2 mb-6">
           [Comparison of default benchmarks across multiple runs - benchmarks should run e.g. every month and this view should compare performance and runtime across multiple runs, e.g. the last year]

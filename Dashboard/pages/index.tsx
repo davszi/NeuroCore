@@ -5,6 +5,7 @@ import { useClientMounted } from '@/hooks/useClientMounted';
 import SlurmQueueTable from '@/components/dashboard/SlurmQueueTable';
 import useSWR, { mutate } from 'swr';
 import { ClusterState, useCluster } from '@/context/ClusterContext';
+import UserStorageTable from '@/components/dashboard/UserStorageTable';
 
 export default function RessourcesPage() {
   const { clusterState, nodesState } = useCluster();
@@ -31,7 +32,7 @@ export default function RessourcesPage() {
     <div className="space-y-8">
       {/* --- Header --- */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-        <h1 className="text-3xl font-bold text-white">Ressources</h1>
+        <h1 className="text-3xl font-bold text-white">Resources</h1>
         <span className="text-sm text-gray-400">
           Last updated: {isClient ? new Date(clusterState.last_updated_timestamp).toLocaleTimeString() : '...'}
         </span>
@@ -39,7 +40,7 @@ export default function RessourcesPage() {
 
       {/* --- 1. Idle (Slurm) Section --- */}
       <div>
-        <h2 className="text-2xl font-semibold text-white mb-4">Idle (Slurm-ressources)</h2>
+        <h2 className="text-2xl font-semibold text-white mb-4">Idle (Slurm-resources)</h2>
         <SlurmQueueTable />
       </div>
 
@@ -93,42 +94,17 @@ export default function RessourcesPage() {
 
   {/* User Storage Table / Permission Message */}
   {selectedVolume && (
-    <div className="mt-4">
-      {(selectedVolume === '/home' || selectedVolume === '/windows-home') ? (
-        <p className="text-red-400">
-          You don't have permission to access individual user storage for {selectedVolume}.
-        </p>
-      ) : clusterState.user_storage?.length ? (
-        <div className="max-h-96 overflow-y-auto border border-gray-700 rounded-lg p-4 bg-gray-900">
-          <h3 className="text-lg font-semibold text-white mb-3">
-            User Storage: {selectedVolume}
-          </h3>
-          <table className="min-w-full divide-y divide-gray-700">
-            <thead className="bg-gray-800">
-              <tr>
-                <th className="px-4 py-2 text-left text-sm font-medium text-gray-300">Username</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-gray-300">Used Storage (GiB)</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-gray-300">Total Files</th>
-              </tr>
-            </thead>
-            <tbody className="bg-gray-900 divide-y divide-gray-800">
-              {clusterState.user_storage
-                .filter((u) => u.mount_point === selectedVolume)
-                .map((user) => (
-                  <tr key={user.username} className="hover:bg-gray-800">
-                    <td className="px-4 py-2 text-cyan-300">{user.username}</td>
-                    <td className="px-4 py-2">{user.used_storage_space_gb.toFixed(2)}</td>
-                    <td className="px-4 py-2">{user.total_files.toLocaleString()}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="text-gray-400">No user storage data available for this volume.</p>
-      )}
-    </div>
-  )}
+  <div className="mt-4">
+    {(selectedVolume === '/home' || selectedVolume === '/windows-home') ? (
+      <p className="text-red-400">
+        You don't have permission to access individual user storage for {selectedVolume}.
+      </p>
+    ) : (
+      <UserStorageTable selectedVolume={selectedVolume} />
+    )}
+  </div>
+)}
+
 </div>
 
     </div>

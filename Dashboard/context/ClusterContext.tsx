@@ -21,8 +21,11 @@ interface GpuNode {
   cpu_util_percent: number;
   mem_util_percent: number;
   gpu_summary_name: string;
-  gpus: Gpu[]; 
+  gpus: Gpu[];
+  active_users: number;            
+  active_usernames: string[];
 }
+
 
 interface LoginNode {
   node_name: string;
@@ -31,6 +34,7 @@ interface LoginNode {
   cpu_util_percent: number;
   mem_util_percent: number;
   active_users: number;
+  active_usernames: string[];
 }
 interface StorageVolume {
   mount_point: string;
@@ -61,6 +65,7 @@ export interface ClusterState {
   user_storage?: UserStorage[];
 }
 interface Job {
+  cpu_percent: any;
   node: string;
   session: string;
   pid: number;
@@ -83,7 +88,7 @@ const FALLBACK_CLUSTER_STATE: ClusterState = {
   last_updated_timestamp: "2025-01-01T00:00:00Z",
   total_power_consumption_watts: 0,
   login_nodes: [
-    { node_name: 'dws-login-01 (Mock)', cores_total: 32, mem_total_gb: 110, cpu_util_percent: 0, mem_util_percent: 0, active_users: 0 },
+    { node_name: 'dws-login-01 (Mock)', cores_total: 32, mem_total_gb: 110, cpu_util_percent: 0, mem_util_percent: 0, active_users: 0 , active_usernames: []},
   ],
   storage: [
     { mount_point: 'CEPH:/home (Mock)', usage_percent: 0, used_tib: 0, total_tib: 0 },
@@ -111,6 +116,8 @@ const FALLBACK_CLUSTER_STATE: ClusterState = {
           power_limit_watts: 0 
         },
       ],
+      active_users: 0,               
+      active_usernames: [],              
     },
   ],
 };
