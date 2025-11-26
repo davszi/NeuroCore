@@ -222,3 +222,6 @@ Thumbs.db
 # Generated data files
 infrastructure/data/*.json
 infrastructure/data/*.jsonl
+
+gpt2_summarization_sdpa_bf16/
+hf_cache/
