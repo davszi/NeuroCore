@@ -194,6 +194,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return acc + nodePower;
   }, 0);
 
+  const responsePayload = {
+    last_updated_timestamp: new Date().toISOString(),
+    total_power_consumption_watts: totalPower,
+    login_nodes: liveLoginNodes,
+    gpu_nodes: liveGpuNodes,
+  };
+
+  const snapshotDir = path.join(process.cwd(), "data/node-history");
+
+  // Create directory if missing
+  if (!fs.existsSync(snapshotDir)) {
+    fs.mkdirSync(snapshotDir, { recursive: true });
+  }
+
+  // Create file like: snapshot-2025-11-26T20-23-14.json
+  const fileName = `snapshot-${new Date()
+    .toISOString()
+    .replace(/:/g, "-")}.json`;
+
+  fs.writeFileSync(
+    path.join(snapshotDir, fileName),
+    JSON.stringify(responsePayload, null, 2)
+  );
+
+  console.log(`[node-state] Saved snapshot: ${fileName}`);
+
+  
+
   res.status(200).json({
     last_updated_timestamp: new Date().toISOString(),
     total_power_consumption_watts: totalPower,
