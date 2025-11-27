@@ -114,10 +114,7 @@ async function pollNodeForJobs(
 
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  
-  console.log(`\n\n--- [jobs-handler] Request received at ${new Date().toISOString()} ---`);
-
-  let password = "Pratham@14";
+  const password = 'Pratham@14';
 
   let nodesConfig;
 
