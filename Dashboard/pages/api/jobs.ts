@@ -103,7 +103,7 @@ async function pollNodeForJobs(node: NodeConfig, password: string): Promise<Job[
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const password = 'Pratham@14';
+  const password = 'WeAreNeuroCore';
 
   let nodesConfig: { nodes: NodeConfig[] } = { nodes: [] };
   try {
