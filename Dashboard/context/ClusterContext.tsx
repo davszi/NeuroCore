@@ -65,7 +65,7 @@ export interface ClusterState {
   user_storage?: UserStorage[];
 }
 interface Job {
-  cpu_percent: any;
+  cpu_percent?: any;
   node: string;
   session: string;
   pid: number;
