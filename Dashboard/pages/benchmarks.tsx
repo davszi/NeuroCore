@@ -202,7 +202,7 @@ export default function BenchmarksPage() {
       {/* Header */}
       <header className="flex items-start justify-between flex-col md:flex-row md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">GPU Monitoring Dashboard</h1>
+          <h1 className="text-3xl font-bold text-white">Performance Benchmark</h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="inline-flex rounded-md bg-gray-800 p-1">
