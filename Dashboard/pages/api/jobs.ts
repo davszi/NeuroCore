@@ -33,8 +33,8 @@ async function pollNodeForJobs(
     await ssh.connect({
       host: node.host,
       port: node.port,
-      username: node.user,
-      password: "Pratham@14",
+      username: process.env.SSH_USERNAME || node.user,
+      password: process.env.SSH_PASSWORD,
     });
 
     console.log(`[jobs] [${node.name}] Connected.`);
