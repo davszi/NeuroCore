@@ -60,8 +60,8 @@ async function pollNode(node: NodeConfig, password: string): Promise<NodeDataTyp
     await ssh.connect({
       host: node.host,
       port: node.port,
-      username: node.user,
-      password: "Pratham@14",
+      username: process.env.SSH_USERNAME || node.user,
+      password: process.env.SSH_PASSWORD,
     });
     console.log(`[node-state] [${node.name}] Connected.`);
 

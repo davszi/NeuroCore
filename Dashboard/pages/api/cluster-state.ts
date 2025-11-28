@@ -55,8 +55,8 @@ async function pollSlurmData(
     await ssh.connect({
       host: node.host,
       port: node.port,
-      username: node.user,
-      password: "Pratham@14"
+      username: process.env.SSH_USERNAME || node.user,
+      password: process.env.SSH_PASSWORD,
     });
 
     const slurmResult = await ssh.execCommand(SLURM_CMD);
@@ -129,8 +129,8 @@ async function pollStorageData(
     await ssh.connect({
       host: node.host,
       port: node.port,
-      username: node.user,
-      password: "Pratham@14"
+      username: process.env.SSH_USERNAME || node.user,
+      password: process.env.SSH_PASSWORD,
     });
 
     const storageResult = await ssh.execCommand(STORAGE_CMD);
@@ -170,8 +170,8 @@ async function pollUserStorageData(
     await ssh.connect({
       host: node.host,
       port: node.port,
-      username: node.user,
-      password: "Pratham@14"
+      username: process.env.SSH_USERNAME || node.user,
+      password: process.env.SSH_PASSWORD,
     });
 
     const dirsToCheck = targetDir
