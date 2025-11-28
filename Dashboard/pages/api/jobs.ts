@@ -34,7 +34,7 @@ async function pollNodeForJobs(
       host: node.host,
       port: node.port,
       username: node.user,
-      password: password
+      password: "Pratham@14",
     });
 
     console.log(`[jobs] [${node.name}] Connected.`);
@@ -114,7 +114,7 @@ async function pollNodeForJobs(
 
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const password = 'Pratham@14';
+  const password = 'Pratham@14'; 
 
   let nodesConfig;
 

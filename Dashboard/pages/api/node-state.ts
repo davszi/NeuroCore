@@ -61,7 +61,7 @@ async function pollNode(node: NodeConfig, password: string): Promise<NodeDataTyp
       host: node.host,
       port: node.port,
       username: node.user,
-      password: "WeAreNeuroCore",
+      password: "Pratham@14",
     });
     console.log(`[node-state] [${node.name}] Connected.`);
 
@@ -152,7 +152,7 @@ async function pollNode(node: NodeConfig, password: string): Promise<NodeDataTyp
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log(`--- [node-state handler] Request received at ${new Date().toISOString()} ---`);
 
-  let password = "WeAreNeuroCore"; // 🔥 Password only
+  let password = "Pratham@14"; // 🔥 Password only
   let nodesConfig: { nodes: NodeConfig[] }, gpuInventory: GpuInventory;
 
   try {
