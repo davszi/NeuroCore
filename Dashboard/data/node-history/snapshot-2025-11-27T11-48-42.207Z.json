@@ -1,0 +1,114 @@
+{
+  "last_updated_timestamp": "2025-11-27T11:48:42.207Z",
+  "total_power_consumption_watts": 448.62,
+  "login_nodes": [
+    {
+      "node_name": "cloud-244",
+      "cores_total": 64,
+      "mem_total_gb": 1008,
+      "cpu_util_percent": 0,
+      "mem_util_percent": 3.7543963977991166,
+      "active_users": 3,
+      "active_usernames": [
+        "tcmd",
+        "root",
+        "tcmd"
+      ]
+    },
+    {
+      "node_name": "cloud-248",
+      "cores_total": 64,
+      "mem_total_gb": 504,
+      "cpu_util_percent": 0,
+      "mem_util_percent": 9.847972102417522,
+      "active_users": 2,
+      "active_usernames": [
+        "dt89",
+        "dt89"
+      ]
+    }
+  ],
+  "gpu_nodes": [
+    {
+      "gpu_name": "NVIDIA RTX 6000",
+      "power_limit_watts": 300,
+      "cores_total": 128,
+      "mem_total_gb": 1008,
+      "node_name": "cloud-243",
+      "gpus": [
+        {
+          "gpu_id": 0,
+          "gpu_name": "NVIDIA A100 80GB PCIe",
+          "utilization_percent": 0,
+          "memory_used_mib": 23032,
+          "memory_total_mib": 81920,
+          "temperature_celsius": 32,
+          "power_draw_watts": 63.6,
+          "power_limit_watts": 300
+        },
+        {
+          "gpu_id": 1,
+          "gpu_name": "Tesla T4",
+          "utilization_percent": 0,
+          "memory_used_mib": 6808,
+          "memory_total_mib": 15360,
+          "temperature_celsius": 37,
+          "power_draw_watts": 26.83,
+          "power_limit_watts": 70
+        }
+      ],
+      "mem_util_percent": 43.8449909236626,
+      "active_users": 10,
+      "active_usernames": [
+        "dt89",
+        "cle15",
+        "apl11",
+        "apl11",
+        "dd03",
+        "jz86",
+        "ef21",
+        "dd03",
+        "dd03",
+        "dd03"
+      ],
+      "gpu_summary_name": "NVIDIA RTX 6000"
+    },
+    {
+      "gpu_name": "NVIDIA RTX 6000",
+      "power_limit_watts": 300,
+      "cores_total": 128,
+      "mem_total_gb": 1134,
+      "node_name": "cloud-247",
+      "gpus": [
+        {
+          "gpu_id": 0,
+          "gpu_name": "NVIDIA H100 NVL",
+          "utilization_percent": 100,
+          "memory_used_mib": 31411,
+          "memory_total_mib": 95830,
+          "temperature_celsius": 72,
+          "power_draw_watts": 358.19,
+          "power_limit_watts": 400
+        }
+      ],
+      "mem_util_percent": 6.180753783599763,
+      "active_users": 13,
+      "active_usernames": [
+        "ds77",
+        "dd03",
+        "rr20",
+        "apl11",
+        "apl11",
+        "sd68",
+        "ts48",
+        "jh92",
+        "sd68",
+        "jh92",
+        "jh92",
+        "ds77",
+        "jh92"
+      ],
+      "gpu_summary_name": "NVIDIA RTX 6000"
+    }
+  ]
+}
