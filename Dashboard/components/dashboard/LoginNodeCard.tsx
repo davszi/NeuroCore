@@ -1,16 +1,7 @@
 import React, { useState } from 'react';
 import ProgressBar from '../ui/ProgressBar';
 import { HiUsers, HiChevronDown, HiChevronUp } from 'react-icons/hi';
-
-interface LoginNode {
-  node_name: string;
-  cores_total: number;
-  mem_total_gb: number;
-  cpu_util_percent: number;
-  mem_util_percent: number;
-  active_users: number;
-  active_usernames: string[];   // <-- NEW FIELD
-}
+import { LoginNode } from '@/types/cluster'; // Import shared type
 
 interface LoginNodeCardProps {
   node: LoginNode;

@@ -2,139 +2,114 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-import { NodeSSH } from 'node-ssh';
+import { runCommand } from '@/lib/ssh';
+import { Job, NodeConfig } from '@/types/cluster';
 
-interface Job {
-  node: string;
-  user: string; 
-  pid: number;
-  process_name: string;
-  gpu_memory_usage_mib: number; 
-  cpu_percent?: number;
-}
-
-interface NodeConfig {
-  name: string;
-  host: string;
-  port: number;
-  user: string;
-}
-
-async function pollNodeForJobs(
-  node: NodeConfig,
-  password: string
-): Promise<Job[]> {
-  const ssh = new NodeSSH();
+/**
+ * Polls a single node for both GPU and CPU jobs.
+ */
+async function getJobsFromNode(node: NodeConfig): Promise<Job[]> {
   const records: Job[] = [];
 
-  try {
-    console.log(`[jobs] [${node.name}] Connecting to ${node.user}@${node.host} using password...`);
+  // --- 1. GPU Jobs Command ---
+  // Query NVIDIA SMI for active compute processes
+  const JOB_CMD_GPU = `nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory --format=csv,noheader,nounits`;
+  const gpuOutput = await runCommand(node, JOB_CMD_GPU);
 
-    await ssh.connect({
-      host: node.host,
-      port: node.port,
-      username: process.env.SSH_USERNAME || node.user,
-      password: process.env.SSH_PASSWORD,
+  if (gpuOutput) {
+    gpuOutput.trim().split('\n').forEach((line) => {
+      const parts = line.split(', ');
+      if (parts.length < 3) return;
+
+      const pid = parseInt(parts[0]);
+      const process_name = parts[1];
+      const memory_usage_mib = parseFloat(parts[2]);
+
+      // Logic to extract user from path (e.g., /scratch/username/...)
+      let user = 'unknown';
+      const pathParts = process_name.split('/');
+      // If path contains 'scratch', user is usually the next segment
+      const scratchIndex = pathParts.indexOf('scratch');
+      if (scratchIndex !== -1 && pathParts[scratchIndex + 1]) {
+        user = pathParts[scratchIndex + 1];
+      }
+
+      records.push({
+        node: node.name,
+        user,
+        pid,
+        process_name,
+        gpu_memory_usage_mib: memory_usage_mib,
+      });
     });
-
-    console.log(`[jobs] [${node.name}] Connected.`);
-
-    // --- GPU Jobs ---
-    const JOB_CMD_GPU = `nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory --format=csv,noheader,nounits`;
-    const jobResultGPU = await ssh.execCommand(JOB_CMD_GPU);
-
-    if (jobResultGPU.code === 0 && jobResultGPU.stdout.trim() !== '') {
-      jobResultGPU.stdout.trim().split('\n').forEach((line: string) => {
-        const parts = line.split(', ');
-        if (parts.length < 3) return;
-
-        const pid = parseInt(parts[0]);
-        const process_name = parts[1];
-        const memory_usage_mib = parseFloat(parts[2]);
-
-        let user = 'unknown';
-        const pathParts = process_name.split('/');
-        if (pathParts.length > 2 && pathParts[1] === 'scratch') {
-          user = pathParts[2];
-        }
-
-        records.push({
-          node: node.name,
-          user,
-          pid,
-          process_name,
-          gpu_memory_usage_mib: memory_usage_mib,
-        });
-      });
-    }
-
-    // --- CPU Jobs ---
-    // Get top CPU-consuming processes (PID, USER, %CPU, COMMAND)
-    const JOB_CMD_CPU = `ps -eo pid,user,%cpu,comm --sort=-%cpu | head -n 20`;
-    const jobResultCPU = await ssh.execCommand(JOB_CMD_CPU);
-
-    if (jobResultCPU.code === 0 && jobResultCPU.stdout.trim() !== '') {
-      // skip header line
-      jobResultCPU.stdout.trim().split('\n').slice(1).forEach((line: string) => {
-        const match = line.trim().split(/\s+/, 4);
-        if (match.length < 4) return;
-
-        const pid = parseInt(match[0]);
-        const user = match[1];
-        const cpu_percent = parseFloat(match[2]);
-        const process_name = match[3];
-
-        records.push({
-          node: node.name,
-          user,
-          pid,
-          process_name: `${process_name} (CPU)`,
-          gpu_memory_usage_mib: 0, // mark as CPU job
-        });
-      });
-    }
-
-    ssh.dispose();
-    console.log(`[jobs] [${node.name}] ✅ Successfully polled jobs. Found ${records.length}.`);
-    return records;
-
-  } catch (e) {
-    const error = e as Error;
-
-    if (error.message.includes('Command failed')) {
-      console.log(`[jobs] [${node.name}] ✅ No GPU or CPU jobs found.`);
-    } else {
-      console.error(`[jobs] ❌ Failed to poll jobs from ${node.name}: ${error.message}`);
-    }
-
-    ssh.dispose();
-    return [];
   }
+
+  // --- 2. CPU Jobs Command ---
+  // Get top 20 CPU-consuming processes, excluding root
+  const JOB_CMD_CPU = `ps -eo pid,user,%cpu,comm --sort=-%cpu | head -n 20`;
+  const cpuOutput = await runCommand(node, JOB_CMD_CPU);
+
+  if (cpuOutput) {
+    // Skip the first line (header)
+    const lines = cpuOutput.trim().split('\n').slice(1);
+    
+    lines.forEach((line) => {
+      // Split by whitespace, limit to 4 parts
+      const match = line.trim().split(/\s+/);
+      if (match.length < 4) return;
+
+      const pid = parseInt(match[0]);
+      const user = match[1];
+      const cpu_percent = parseFloat(match[2]);
+      const process_name = match[3];
+
+      // Filter: Ignore root and low CPU usage
+      if (user === 'root') return;
+      if (cpu_percent < 5.0) return; 
+
+      records.push({
+        node: node.name,
+        user,
+        pid,
+        process_name: `${process_name} (CPU)`,
+        gpu_memory_usage_mib: 0, // 0 indicates a CPU job
+        cpu_percent: cpu_percent
+      });
+    });
+  }
+
+  return records;
 }
 
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const password = 'Pratham@14'; 
-
   let nodesConfig;
 
   try {
+    // Load config safely
     const nodesPath = path.join(process.cwd(), '../config/nodes.yaml');
-    console.log(`[jobs-handler] Reading nodes config from: ${nodesPath}`);
-    nodesConfig = yaml.load(fs.readFileSync(nodesPath, 'utf8')) as { nodes: NodeConfig[] };
+    
+    if (!fs.existsSync(nodesPath)) {
+      throw new Error(`Config file not found at: ${nodesPath}`);
+    }
+
+    const fileContent = fs.readFileSync(nodesPath, 'utf8');
+    nodesConfig = yaml.load(fileContent) as { nodes: NodeConfig[] };
 
   } catch (e) {
-    console.error(`[jobs-handler] ❌ CRITICAL ERROR: Failed to load config.`);
-    return res.status(500).json({ error: 'Failed to read config file.', details: (e as Error).message });
+    console.error(`[jobs-api] Failed to load config.`);
+    return res.status(500).json({ error: 'Configuration Error', details: (e as Error).message });
   }
 
-  console.log(`[jobs-handler] Polling all ${nodesConfig.nodes.length} nodes for jobs...`);
-
-  const pollPromises = nodesConfig.nodes.map(node => pollNodeForJobs(node, password));
+  // Run all nodes in parallel
+  // This is much faster than awaiting them one by one
+  const pollPromises = nodesConfig.nodes.map(node => getJobsFromNode(node));
   const results = await Promise.all(pollPromises);
 
+  // Flatten the array of arrays into a single list of jobs
   const allJobs: Job[] = results.flat();
 
-  console.log(`[jobs-handler] ✅ Sending 200 response. Found ${allJobs.length} jobs.`);
+  // Sort by GPU memory usage (descending) as a default view
+  allJobs.sort((a, b) => b.gpu_memory_usage_mib - a.gpu_memory_usage_mib);
+
   res.status(200).json(allJobs);
 }

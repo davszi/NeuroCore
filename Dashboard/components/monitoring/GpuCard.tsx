@@ -1,16 +1,6 @@
 import React from 'react';
 import ProgressBar from '../ui/ProgressBar';
-
-interface Gpu {
-  gpu_id: number;
-  gpu_name: string;
-  utilization_percent: number;
-  memory_used_mib: number;  
-  memory_total_mib: number; 
-  temperature_celsius: number;
-  power_draw_watts: number; 
-  power_limit_watts: number;
-}
+import { Gpu } from '@/types/cluster'; // Import shared type
 
 interface GpuCardProps {
   gpu: Gpu;
@@ -29,14 +19,12 @@ export default function GpuCard({ gpu }: GpuCardProps) {
           GPU {gpu.gpu_id}: {gpu.gpu_name}
         </span>
         <span className="text-xs text-gray-400">
-          {/* Use 'power_draw_watts' which matches the API */}
           {gpu.temperature_celsius}°C / {gpu.power_draw_watts}W
         </span>
       </div>
 
       <div className="space-y-3">
         <ProgressBar label="GPU" value={gpu.utilization_percent} />
-        {/* 3. Pass our calculated percentage to the ProgressBar */}
         <ProgressBar label="VRAM" value={memory_util_percent} />
       </div>
     </div>

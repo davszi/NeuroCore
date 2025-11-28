@@ -2,29 +2,7 @@ import React, { useState } from 'react';
 import GpuCard from './GpuCard';
 import ProgressBar from '../ui/ProgressBar';
 import { HiUsers, HiChevronDown, HiChevronUp } from 'react-icons/hi';
-
-interface GpuNode {
-  node_name: string;
-  cores_total: number;
-  mem_total_gb: number;
-  cpu_util_percent: number;
-  mem_util_percent: number;
-  gpu_summary_name: string;
-
-  active_users: number;
-  active_usernames: string[];
-
-  gpus: Array<{
-    gpu_id: number;
-    gpu_name: string;
-    utilization_percent: number;
-    memory_used_mib: number;
-    memory_total_mib: number;
-    temperature_celsius: number;
-    power_draw_watts: number;
-    power_limit_watts: number;
-  }>;
-}
+import { GpuNode } from '@/types/cluster'; // Import shared type
 
 interface NodeCardProps {
   node: GpuNode; 
@@ -57,7 +35,7 @@ export default function NodeCard({ node }: NodeCardProps) {
         ))}
       </div>
 
-      {/* --- Active Users (Clickable) with Chevron at End --- */}
+      {/* --- Active Users (Clickable) --- */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center justify-between w-full text-sm text-gray-400 hover:text-white transition mb-3"

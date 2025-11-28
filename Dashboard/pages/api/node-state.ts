@@ -2,230 +2,189 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-import { NodeSSH } from 'node-ssh';
+import { runCommand } from '@/lib/ssh';
+import { NodeConfig, GpuNode, LoginNode, Gpu } from '@/types/cluster';
 
-// --- Interfaces (unchanged) ---
-interface Gpu {
-  gpu_id: number;
-  gpu_name: string;
-  utilization_percent: number;
-  memory_used_mib: number;
-  memory_total_mib: number;
-  temperature_celsius: number;
-  power_draw_watts: number;
-  power_limit_watts: number;
-}
+// Interface for the static inventory file (gpu_inventory.yaml)
 interface GpuInventoryNode {
   gpu_name: string;
   power_limit_watts: number;
   cores_total: number;
   mem_total_gb: number;
 }
+
 interface GpuInventory {
   defaults: GpuInventoryNode;
   nodes: { [nodeName: string]: GpuInventoryNode };
 }
-interface NodeConfig {
-  name: string;
-  host: string;
-  port: number;
-  user: string;
-}
-interface NodeDataType {
-  node_name: string;
-  cores_total?: number;
-  mem_total_gb?: number;
-  cpu_util_percent?: number;
-  mem_util_percent?: number;
-  gpu_summary_name?: string;
-  active_users?: number;
-  active_usernames?: string[];
-  gpus?: Gpu[];
-}
 
-// --- Commands ---
-const GPU_CMD = `nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit --format=csv,noheader,nounits`;
-const CORES_CMD = `nproc`;
-const MEM_CMD = `cat /proc/meminfo`;
-const USERS_CMD = `who | wc -l`;
-const USERS_LIST_CMD = `who | awk '{print $1}'`;
+/**
+ * Polls a single node for all hardware stats in ONE SSH connection.
+ */
+async function getNodeData(node: NodeConfig) {
+  // We combine commands using specific delimiters to parse them later.
+  // This avoids establishing 4 separate SSH handshakes.
+  const DELIMITER = "---SECTION---";
+  
+  const cmd = [
+    // 1. GPU Data
+    `nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit --format=csv,noheader,nounits`,
+    `echo "${DELIMITER}"`,
+    // 2. CPU Cores
+    `nproc`,
+    `echo "${DELIMITER}"`,
+    // 3. Memory (Total and Available)
+    `grep -E 'MemTotal|MemAvailable' /proc/meminfo`,
+    `echo "${DELIMITER}"`,
+    // 4. Active Users count
+    `who | wc -l`,
+    `echo "${DELIMITER}"`,
+    // 5. Active Usernames list
+    `who | awk '{print $1}' | sort | uniq`
+  ].join(';');
 
-// --- Polling a single node ---
-async function pollNode(node: NodeConfig, password: string): Promise<NodeDataType | null> {
-  const ssh = new NodeSSH();
-  const nodeData: NodeDataType = { node_name: node.name, gpus: [] };
+  const rawOutput = await runCommand(node, cmd);
+  if (!rawOutput) return null;
 
-  try {
-    console.log(`[node-state] [${node.name}] Connecting using password...`);
-    await ssh.connect({
-      host: node.host,
-      port: node.port,
-      username: process.env.SSH_USERNAME || node.user,
-      password: process.env.SSH_PASSWORD,
+  const sections = rawOutput.split(DELIMITER).map(s => s.trim());
+
+  // --- Parse GPU ---
+  const gpus: Gpu[] = [];
+  if (sections[0]) {
+    sections[0].split('\n').forEach(line => {
+      const parts = line.split(', ');
+      if (parts.length >= 8) {
+        gpus.push({
+          gpu_id: parseInt(parts[0]),
+          gpu_name: parts[1],
+          utilization_percent: parseFloat(parts[2]),
+          memory_used_mib: parseFloat(parts[3]),
+          memory_total_mib: parseFloat(parts[4]),
+          temperature_celsius: parseFloat(parts[5]),
+          power_draw_watts: parseFloat(parts[6]),
+          power_limit_watts: parseFloat(parts[7]),
+        });
+      }
     });
-    console.log(`[node-state] [${node.name}] Connected.`);
-
-    // GPU
-    try {
-      const gpuResult = await ssh.execCommand(GPU_CMD);
-      if (gpuResult.code === 0 && gpuResult.stdout.trim() !== '') {
-        gpuResult.stdout.trim().split('\n').forEach((line: string) => {
-          const parts = line.split(', ');
-          if (parts.length >= 8) { 
-            nodeData.gpus?.push({
-              gpu_id: parseInt(parts[0]),
-              gpu_name: parts[1].trim(),
-              utilization_percent: parseFloat(parts[2]),
-              memory_used_mib: parseFloat(parts[3]),
-              memory_total_mib: parseFloat(parts[4]),
-              temperature_celsius: parseFloat(parts[5]),
-              power_draw_watts: parseFloat(parts[6]),
-              power_limit_watts: parseFloat(parts[7]),
-            });
-          }
-        });
-      }
-    } catch (e) {
-      console.warn(`[node-state] [${node.name}] GPU_CMD failed (login node or no GPU).`);
-    }
-
-    // CPU cores
-    try {
-      const coresResult = await ssh.execCommand(CORES_CMD);
-      if (coresResult.code === 0) nodeData.cores_total = parseInt(coresResult.stdout.trim());
-    } catch (e) { console.error(`[node-state] [${node.name}] CORES_CMD failed.`); }
-
-    // Memory
-    try {
-      const memResult = await ssh.execCommand(MEM_CMD);
-      if (memResult.code === 0) {
-        const lines = memResult.stdout.trim().split('\n');
-        let total_kib = 0, available_kib = 0;
-        lines.forEach(line => {
-          if (line.startsWith("MemTotal:")) total_kib = parseInt(line.split(":")[1].trim());
-          if (line.startsWith("MemAvailable:")) available_kib = parseInt(line.split(":")[1].trim());
-        });
-        if (total_kib > 0) {
-          const used_kib = total_kib - available_kib;
-          nodeData.mem_total_gb = Math.round(total_kib / (1024 * 1024));
-          nodeData.mem_util_percent = (used_kib / total_kib) * 100;
-        }
-      }
-    } catch (e) { console.error(`[node-state] [${node.name}] MEM_CMD failed.`); }
-
-    // Active users (count)
-      try {
-        const usersResult = await ssh.execCommand(USERS_CMD);
-        if (usersResult.code === 0) {
-          nodeData.active_users = parseInt(usersResult.stdout.trim());
-        }
-      } catch (e) { 
-        console.error(`[node-state] [${node.name}] USERS_CMD failed.`); 
-      }
-
-      // Active usernames (list)
-      try {
-        const usersListResult = await ssh.execCommand(USERS_LIST_CMD);
-        if (usersListResult.code === 0) {
-          nodeData.active_usernames = usersListResult.stdout
-            .trim()
-            .split('\n')
-            .map(u => u.trim())
-            .filter(Boolean);
-        }
-      } catch (e) {
-        console.error(`[node-state] [${node.name}] USERS_LIST_CMD failed.`);
-      }
-
-
-    ssh.dispose();
-    return nodeData;
-
-  } catch (e) {
-    console.error(`[node-state] [${node.name}] Failed to poll node: ${(e as Error).message}`);
-    ssh.dispose();
-    return null;
   }
+
+  // --- Parse CPU ---
+  const cores_total = parseInt(sections[1] || '0');
+
+  // --- Parse Memory ---
+  let mem_total_gb = 0;
+  let mem_util_percent = 0;
+  if (sections[2]) {
+    const memLines = sections[2].split('\n');
+    let totalKb = 0;
+    let availKb = 0;
+    memLines.forEach(l => {
+      if (l.includes('MemTotal')) totalKb = parseInt(l.split(':')[1]);
+      if (l.includes('MemAvailable')) availKb = parseInt(l.split(':')[1]);
+    });
+    if (totalKb > 0) {
+      mem_total_gb = Math.round(totalKb / (1024 * 1024));
+      mem_util_percent = ((totalKb - availKb) / totalKb) * 100;
+    }
+  }
+
+  // --- Parse Users ---
+  const active_users = parseInt(sections[3] || '0');
+  const active_usernames = sections[4] ? sections[4].split('\n').filter(Boolean) : [];
+
+  return {
+    node_name: node.name,
+    cores_total,
+    mem_total_gb,
+    cpu_util_percent: 0, // Ideally needs 'top' or 'mpstat', leaving 0 as placeholder for speed
+    mem_util_percent,
+    active_users,
+    active_usernames,
+    gpus
+  };
 }
 
-// --- API Handler ---
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  console.log(`--- [node-state handler] Request received at ${new Date().toISOString()} ---`);
-
-  let password = "Pratham@14"; // 🔥 Password only
-  let nodesConfig: { nodes: NodeConfig[] }, gpuInventory: GpuInventory;
-
   try {
     const nodesPath = path.join(process.cwd(), '../config/nodes.yaml');
     const inventoryPath = path.join(process.cwd(), '../config/gpu_inventory.yaml');
-    nodesConfig = yaml.load(fs.readFileSync(nodesPath, 'utf8')) as { nodes: NodeConfig[] };
-    gpuInventory = yaml.load(fs.readFileSync(inventoryPath, 'utf8')) as GpuInventory;
-  } catch (e) {
-    return res.status(500).json({ error: 'Failed to read config files.', details: (e as Error).message });
-  }
 
-  const nodePollPromises = nodesConfig.nodes.map(node => pollNode(node, password));
-  const nodeResults = await Promise.all(nodePollPromises);
-
-  const polledNodes = nodeResults.filter((r): r is NodeDataType => r !== null);
-  const liveGpuNodes: NodeDataType[] = [];
-  const liveLoginNodes: NodeDataType[] = [];
-
-  polledNodes.forEach(nodeData => {
-    const staticData = gpuInventory.nodes[nodeData.node_name] || gpuInventory.defaults;
-    const mergedData = { ...staticData, ...nodeData };
-    if (mergedData.gpus && mergedData.gpus.length > 0) {
-      liveGpuNodes.push({ ...mergedData, gpu_summary_name: staticData.gpu_name });
-    } else {
-      liveLoginNodes.push({
-        node_name: mergedData.node_name,
-        cores_total: mergedData.cores_total,
-        mem_total_gb: mergedData.mem_total_gb,
-        cpu_util_percent: mergedData.cpu_util_percent || 0,
-        mem_util_percent: mergedData.mem_util_percent || 0,
-        active_users: mergedData.active_users || 0,
-        active_usernames: mergedData.active_usernames || [],
-      });
+    if (!fs.existsSync(nodesPath) || !fs.existsSync(inventoryPath)) {
+      return res.status(500).json({ error: 'Configuration files missing' });
     }
-  });
 
-  const totalPower = liveGpuNodes.reduce((acc, node) => {
-    const nodePower = (node.gpus || []).reduce((sum, gpu) => sum + (gpu.power_draw_watts || 0), 0);
-    return acc + nodePower;
-  }, 0);
+    const nodesConfig = yaml.load(fs.readFileSync(nodesPath, 'utf8')) as { nodes: NodeConfig[] };
+    const gpuInventory = yaml.load(fs.readFileSync(inventoryPath, 'utf8')) as GpuInventory;
 
-  const responsePayload = {
-    last_updated_timestamp: new Date().toISOString(),
-    total_power_consumption_watts: totalPower,
-    login_nodes: liveLoginNodes,
-    gpu_nodes: liveGpuNodes,
-  };
+    // Run in parallel
+    const nodePromises = nodesConfig.nodes.map(node => getNodeData(node));
+    const results = await Promise.all(nodePromises);
 
-  const snapshotDir = path.join(process.cwd(), "data/node-history");
+    const liveGpuNodes: GpuNode[] = [];
+    const liveLoginNodes: LoginNode[] = [];
+    let totalPower = 0;
 
-  // Create directory if missing
-  if (!fs.existsSync(snapshotDir)) {
-    fs.mkdirSync(snapshotDir, { recursive: true });
+    results.forEach(data => {
+      if (!data) return;
+
+      // Merge static inventory data with live data
+      const staticData = gpuInventory.nodes[data.node_name] || gpuInventory.defaults;
+      
+      // Use live data if available, fallback to static
+      const finalCores = data.cores_total || staticData.cores_total;
+      const finalMem = data.mem_total_gb || staticData.mem_total_gb;
+
+      if (data.gpus && data.gpus.length > 0) {
+        // It is a GPU node
+        data.gpus.forEach(g => totalPower += g.power_draw_watts);
+        liveGpuNodes.push({
+          node_name: data.node_name,
+          cores_total: finalCores,
+          mem_total_gb: finalMem,
+          cpu_util_percent: data.cpu_util_percent,
+          mem_util_percent: data.mem_util_percent,
+          gpu_summary_name: staticData.gpu_name,
+          gpus: data.gpus,
+          active_users: data.active_users,
+          active_usernames: data.active_usernames
+        });
+      } else {
+        // It is a Login/CPU node
+        liveLoginNodes.push({
+          node_name: data.node_name,
+          cores_total: finalCores,
+          mem_total_gb: finalMem,
+          cpu_util_percent: data.cpu_util_percent,
+          mem_util_percent: data.mem_util_percent,
+          active_users: data.active_users,
+          active_usernames: data.active_usernames
+        });
+      }
+    });
+
+    const responsePayload = {
+      last_updated_timestamp: new Date().toISOString(),
+      total_power_consumption_watts: Math.round(totalPower),
+      login_nodes: liveLoginNodes,
+      gpu_nodes: liveGpuNodes,
+    };
+
+    // --- HISTORY SAVING LOGIC ---
+    // Only save to disk if the query param ?save=true is present.
+    // This prevents disk thrashing on every poll.
+    if (req.query.save === 'true') {
+      const snapshotDir = path.join(process.cwd(), "data/node-history");
+      if (!fs.existsSync(snapshotDir)) fs.mkdirSync(snapshotDir, { recursive: true });
+      
+      const fileName = `snapshot-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      fs.writeFileSync(path.join(snapshotDir, fileName), JSON.stringify(responsePayload));
+      console.log(`[History] Saved snapshot: ${fileName}`);
+    }
+
+    res.status(200).json(responsePayload);
+
+  } catch (e) {
+    console.error("Node State Error:", e);
+    res.status(500).json({ error: (e as Error).message });
   }
-
-  // Create file like: snapshot-2025-11-26T20-23-14.json
-  const fileName = `snapshot-${new Date()
-    .toISOString()
-    .replace(/:/g, "-")}.json`;
-
-  fs.writeFileSync(
-    path.join(snapshotDir, fileName),
-    JSON.stringify(responsePayload, null, 2)
-  );
-
-  console.log(`[node-state] Saved snapshot: ${fileName}`);
-
-  
-
-  res.status(200).json({
-    last_updated_timestamp: new Date().toISOString(),
-    total_power_consumption_watts: totalPower,
-    login_nodes: liveLoginNodes,
-    gpu_nodes: liveGpuNodes,
-  });
 }

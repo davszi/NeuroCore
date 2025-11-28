@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useCluster } from '@/context/ClusterContext';
 import { HiOutlineRefresh } from 'react-icons/hi';
+import { Job } from '@/types/cluster';
 
 const JobStatusIndicator: React.FC<{ isCpu?: boolean }> = ({ isCpu }) => (
   <div className="flex items-center">
@@ -12,9 +13,23 @@ const JobStatusIndicator: React.FC<{ isCpu?: boolean }> = ({ isCpu }) => (
 );
 
 export default function JobTable() {
+  // 1. All Hooks MUST be at the top level
   const { jobs, isJobsLoading, jobsError } = useCluster();
   const [searchTerm, setSearchTerm] = useState('');
 
+  // 2. Define useMemo here (Always run it, even if empty)
+  const filteredJobs = useMemo(() => {
+    if (!jobs) return [];
+    const term = searchTerm.toLowerCase();
+    return jobs.filter(
+      (job) =>
+        (job.user || '').toLowerCase().includes(term) ||
+        (job.node || '').toLowerCase().includes(term) ||
+        (job.process_name || '').toLowerCase().includes(term)
+    );
+  }, [jobs, searchTerm]);
+
+  // 3. NOW we can do conditional returns
   if (isJobsLoading && !jobsError) {
     return (
       <div className="flex items-center justify-center h-48 bg-gray-900 rounded-lg">
@@ -39,16 +54,6 @@ export default function JobTable() {
       </div>
     );
   }
-
-  const filteredJobs = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    return jobs.filter(
-      (job) =>
-        job.user.toLowerCase().includes(term) ||
-        job.node.toLowerCase().includes(term) ||
-        job.process_name.toLowerCase().includes(term)
-    );
-  }, [jobs, searchTerm]);
 
   return (
     <div className="bg-gray-900 shadow-md rounded-lg overflow-hidden border border-gray-700">

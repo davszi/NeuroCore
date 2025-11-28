@@ -1,14 +1,6 @@
 import React from 'react';
-import ProgressBar from '../ui/ProgressBar'; // Reusing our progress bar
-
-// 1. 🧠 Define the type for the data
-//    This matches the 'StorageVolume' interface in your ClusterContext.tsx
-interface StorageVolume {
-  mount_point: string;
-  usage_percent: number;
-  used_tib: number;
-  total_tib: number;
-}
+import ProgressBar from '../ui/ProgressBar';
+import { StorageVolume } from '@/types/cluster'; // Import shared type
 
 interface StorageVolumeCardProps {
   volume: StorageVolume;
@@ -29,7 +21,6 @@ export default function StorageVolumeCard({ volume }: StorageVolumeCardProps) {
       </div>
 
       {/* --- Progress Bar --- */}
-      {/* We can reuse the same ProgressBar component! */}
       <ProgressBar label="Usage" value={volume.usage_percent} />
     </div>
   );

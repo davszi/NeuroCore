@@ -1,17 +1,7 @@
 import React from 'react';
 import { useCluster } from '@/context/ClusterContext';
 import { HiOutlineRefresh } from 'react-icons/hi';
-
-//    This matches the 'SlurmPartition' interface in your ClusterContext.tsx
-interface SlurmPartition {
-  partition: string;
-  cpu_free: number | null;
-  cpu_allocated: number | null;
-  gpu_free: number | null;
-  gpu_allocated: number | null;
-  mem_free_gb: number;
-  mem_allocated_gb: number;
-}
+// No need to import SlurmPartition explicitly because useCluster already types 'clusterState' correctly!
 
 export default function SlurmQueueTable() {
   const { clusterState, isStateLoading, stateError } = useCluster();
