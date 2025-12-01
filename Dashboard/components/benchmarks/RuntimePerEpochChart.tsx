@@ -25,6 +25,7 @@ export default function RuntimePerEpochChart({ sdpaRuntime, flashRuntime }: Prop
     epoch,
     'SDPA Attention': sdpaMap.get(epoch) ?? null,
     'Flash Attention': flashMap.get(epoch) ?? null,
+    isEpoch0: epoch === 0, // Flag to identify epoch 0
   }));
 
   return (
@@ -34,7 +35,7 @@ export default function RuntimePerEpochChart({ sdpaRuntime, flashRuntime }: Prop
         margin={{
           top: 5,
           right: 20,
-          left: 10,
+          left: 15,
           bottom: 5,
         }}
       >
@@ -43,15 +44,40 @@ export default function RuntimePerEpochChart({ sdpaRuntime, flashRuntime }: Prop
           dataKey="epoch" 
           stroke="#9CA3AF"
           label={{ value: 'Epoch', position: 'insideBottom', offset: -5, fill: '#9CA3AF' }}
+          tickFormatter={(value) => {
+            if (value === 0) return '0 (setup)';
+            return value.toString();
+          }}
         />
         <YAxis 
           stroke="#9CA3AF"
-          label={{ value: 'Runtime (seconds)', angle: -90, position: 'insideLeft', offset: 20, fill: '#9CA3AF' }}
+          tickFormatter={(value) => {
+            if (value >= 60) {
+              const minutes = Math.floor(value / 60);
+              const seconds = value % 60;
+              return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+            }
+            return `${value}s`;
+          }}
         />
         <Tooltip 
           contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #4B5563' }}
           labelStyle={{ color: '#F9FAFB' }}
-          formatter={(value: number) => value !== null ? `${value.toFixed(2)}s` : 'N/A'}
+          formatter={(value: number, name: string) => {
+            if (value === null || value < 0) return ['N/A', name];
+            const minutes = Math.floor(value / 60);
+            const seconds = (value % 60).toFixed(1);
+            if (minutes > 0) {
+              return [`${minutes}m ${seconds}s (${value.toFixed(1)}s)`, name];
+            }
+            return [`${seconds}s`, name];
+          }}
+          labelFormatter={(label) => {
+            if (label === 0) {
+              return `Epoch 0 (Initial training setup + first epoch)`;
+            }
+            return `Epoch ${label} (Runtime for this epoch only)`;
+          }}
         />
         <Legend wrapperStyle={{ color: '#D1D5DB' }} />
         <Line 

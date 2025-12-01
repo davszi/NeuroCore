@@ -94,31 +94,46 @@ export default async function handler(
         return [];
       }
       
-      const epochMap: Record<number, { minTime: number; maxTime: number }> = {};
+      // Group entries by epoch
+      const epochMap: Record<number, MetricEntry[]> = {};
       
       data.forEach(entry => {
         const epochNum = Math.floor(entry.epoch);
         if (!epochMap[epochNum]) {
-          epochMap[epochNum] = { minTime: entry.training_time_seconds, maxTime: entry.training_time_seconds };
-        } else {
-          epochMap[epochNum].minTime = Math.min(epochMap[epochNum].minTime, entry.training_time_seconds);
-          epochMap[epochNum].maxTime = Math.max(epochMap[epochNum].maxTime, entry.training_time_seconds);
+          epochMap[epochNum] = [];
         }
+        epochMap[epochNum].push(entry);
       });
 
       const sortedEpochs = Object.keys(epochMap).map(Number).sort((a, b) => a - b);
       
       return sortedEpochs.map((epoch, index) => {
-        const current = epochMap[epoch];
-        const prevEpoch = sortedEpochs[index - 1];
-        const prevMaxTime = prevEpoch !== undefined ? epochMap[prevEpoch].maxTime : 0;
+        const epochEntries = epochMap[epoch];
         
-        // Runtime for this epoch = time difference from previous epoch's end
-        const epochRuntime = current.maxTime - prevMaxTime;
+        // Sort entries by training_time_seconds to get first and last
+        epochEntries.sort((a, b) => a.training_time_seconds - b.training_time_seconds);
+        const firstEntry = epochEntries[0];
+        const lastEntry = epochEntries[epochEntries.length - 1];
+        
+        // For epoch 0, runtime is the time to complete epoch 0
+        if (index === 0) {
+          return {
+            epoch,
+            runtime_seconds: lastEntry.training_time_seconds - firstEntry.training_time_seconds || lastEntry.training_time_seconds,
+          };
+        }
+        
+        // For subsequent epochs, runtime is time from previous epoch's end to this epoch's end
+        const prevEpoch = sortedEpochs[index - 1];
+        const prevEpochEntries = epochMap[prevEpoch];
+        prevEpochEntries.sort((a, b) => a.training_time_seconds - b.training_time_seconds);
+        const prevEpochEndTime = prevEpochEntries[prevEpochEntries.length - 1].training_time_seconds;
+        
+        const epochRuntime = lastEntry.training_time_seconds - prevEpochEndTime;
         
         return {
           epoch,
-          runtime_seconds: epochRuntime > 0 ? epochRuntime : (current.maxTime - current.minTime),
+          runtime_seconds: epochRuntime > 0 ? epochRuntime : (lastEntry.training_time_seconds - firstEntry.training_time_seconds),
         };
       });
     };

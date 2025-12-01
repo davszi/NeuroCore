@@ -46,7 +46,6 @@ export default function PerplexityChart({ sdpaData, flashData }: Props) {
         />
         <YAxis 
           stroke="#9CA3AF"
-          label={{ value: 'Perplexity', angle: -90, position: 'insideLeft', offset: 20, fill: '#9CA3AF' }}
         />
         <Tooltip 
           contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #4B5563' }}

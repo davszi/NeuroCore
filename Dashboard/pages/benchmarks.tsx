@@ -10,7 +10,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import GpuMemoryChart from "../components/benchmarks/GpuMemoryChart";
+import GpuMemoryBarChart from "../components/benchmarks/GpuMemoryBarChart";
+import RamUsageBarChart from "../components/benchmarks/RamUsageBarChart";
 import PerplexityChart from "../components/benchmarks/PerplexityChart";
 import RuntimePerEpochChart from "../components/benchmarks/RuntimePerEpochChart";
 import MLBenchmarkChart from "../components/benchmarks/MLBenchmarkChart";
@@ -338,33 +339,58 @@ export default function BenchmarksPage() {
         <section className="space-y-6">
           <h2 className="text-2xl font-bold text-white">Attention Mechanism Comparison</h2>
           
-          {/* GPU Memory Usage Chart */}
-          <motion.div
-            className="bg-gray-900 border border-gray-700 rounded-lg p-6"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-          >
-             <div className="flex items-center gap-2 mb-4">
-               <h3 className="text-lg font-semibold text-white">GPU Memory & RAM Usage</h3>
-               <div className="group relative">
-                 <svg className="w-4 h-4 text-gray-400 hover:text-gray-300 cursor-help" fill="currentColor" viewBox="0 0 20 20">
-                   <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                 </svg>
-                 <div className="absolute left-0 top-6 w-64 p-3 bg-gray-800 border border-gray-700 rounded-lg text-xs text-gray-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                   <div className="space-y-2">
-                     <div><span className="text-red-400">●</span> Solid lines: GPU Memory (SDPA: red, Flash: green)</div>
-                     <div><span className="text-pink-400">━</span> Dashed lines: RAM Usage (SDPA: pink, Flash: light green)</div>
-                     <div className="text-gray-400 mt-2">Left Y-axis: GPU Memory (GB)<br/>Right Y-axis: RAM Usage (GB)</div>
-                   </div>
-                 </div>
-               </div>
-             </div>
-            <div className="h-80">
-              <GpuMemoryChart
+          {/* GPU Memory Usage and RAM Usage Charts - Side by Side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* GPU Memory Usage Chart */}
+            <motion.div
+              className="bg-gray-900 border border-gray-700 rounded-lg p-6"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">GPU Memory Usage</h3>
+              <p className="text-xs text-gray-500 mb-4">(Total: {94} GB per GPU)</p>
+              <GpuMemoryBarChart
                 sdpaData={attentionMetrics.sdpa?.data || []}
                 flashData={attentionMetrics.flash?.data || []}
               />
+            </motion.div>
+
+            {/* RAM Usage Chart */}
+            <motion.div
+              className="bg-gray-900 border border-gray-700 rounded-lg p-6"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: 0.05 }}
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">RAM Usage</h3>
+              <p className="text-xs text-gray-500 mb-4">(Total: {1100} GB / 1.1 TB)</p>
+              <RamUsageBarChart
+                sdpaData={attentionMetrics.sdpa?.data || []}
+                flashData={attentionMetrics.flash?.data || []}
+              />
+            </motion.div>
+          </div>
+
+          {/* Insight Box */}
+          <motion.div
+            className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, delay: 0.1 }}
+          >
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <h4 className="text-blue-300 font-semibold mb-1">Key Insight</h4>
+                <p className="text-gray-300 text-sm">
+                  Both Flash Attention and SDPA Attention consume almost identical GPU Memory and RAM. 
+                  This tells us that performance differences come from <span className="text-blue-400 font-medium">algorithmic speed</span>, not memory usage. 
+                  Memory is not a bottleneck here.
+                </p>
+              </div>
             </div>
           </motion.div>
 
@@ -393,7 +419,15 @@ export default function BenchmarksPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25, delay: 0.2 }}
             >
-              <h3 className="text-lg font-semibold text-white mb-4">Runtime per Epoch</h3>
+              <h3 className="text-lg font-semibold text-white mb-2">Runtime per Epoch (seconds)</h3>
+              <div className="text-sm text-gray-400 mb-4 space-y-1">
+                <p className="italic">
+                  Time taken to complete each training epoch. Lower runtime indicates faster training.
+                </p>
+                <p className="text-xs text-gray-500">
+                  <span className="text-yellow-400">Note:</span> Epoch 0 includes initial setup time. Subsequent epochs show runtime for that epoch only.
+                </p>
+              </div>
               <div className="h-64">
                 <RuntimePerEpochChart
                   sdpaRuntime={attentionMetrics.sdpa?.runtimePerEpoch || []}

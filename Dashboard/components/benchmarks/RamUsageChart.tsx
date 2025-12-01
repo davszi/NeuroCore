@@ -2,7 +2,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 
 interface MetricEntry {
   step: number;
-  gpu_mem_GB: number;
+  ram_usage_GB: number;
 }
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
   flashData: MetricEntry[];
 }
 
-export default function GpuMemoryChart({ sdpaData, flashData }: Props) {
+export default function RamUsageChart({ sdpaData, flashData }: Props) {
   // Combine data by step
   const allSteps = new Set([
     ...sdpaData.map(d => d.step),
@@ -18,8 +18,8 @@ export default function GpuMemoryChart({ sdpaData, flashData }: Props) {
   ]);
   const sortedSteps = Array.from(allSteps).sort((a, b) => a - b);
 
-  const sdpaMap = new Map(sdpaData.map(d => [d.step, d.gpu_mem_GB]));
-  const flashMap = new Map(flashData.map(d => [d.step, d.gpu_mem_GB]));
+  const sdpaMap = new Map(sdpaData.map(d => [d.step, d.ram_usage_GB]));
+  const flashMap = new Map(flashData.map(d => [d.step, d.ram_usage_GB]));
 
   const combinedData = sortedSteps.map(step => ({
     step,
@@ -48,9 +48,9 @@ export default function GpuMemoryChart({ sdpaData, flashData }: Props) {
         />
         <YAxis 
           stroke="#9CA3AF"
-          domain={[0, 94]}
+          domain={[0, 1100]}
           label={{ 
-            value: 'GPU Memory', 
+            value: 'RAM Usage', 
             angle: -90, 
             position: 'insideLeft', 
             offset: 15, 
@@ -62,8 +62,8 @@ export default function GpuMemoryChart({ sdpaData, flashData }: Props) {
           labelStyle={{ color: '#F9FAFB' }}
           formatter={(value: number, name: string) => {
             if (value === null) return 'N/A';
-            const percentage = ((value / 94) * 100).toFixed(2);
-            return [`${value.toFixed(2)} GB (${percentage}% of total)`, name];
+            const percentage = ((value / 1100) * 100).toFixed(2);
+            return [`${value.toFixed(2)} GB (${percentage}% of system RAM)`, name];
           }}
         />
         <Legend wrapperStyle={{ color: '#D1D5DB' }} />
