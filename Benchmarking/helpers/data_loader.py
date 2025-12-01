@@ -1,159 +1,140 @@
-import datasets
-from typing import Dict, List, Any, Optional, Callable
-from helpers.validation import validate_dataset
+from functools import partial
+from typing import Tuple, Optional, Dict, Any
 
-def prepare_dataset(
+import datasets
+from datasets import Dataset
+from transformers import AutoTokenizer, PreTrainedTokenizerBase
+
+from Benchmarking.helpers.validation import validate_dataset
+from Benchmarking.helpers.preprocessors import (
+    preprocess_summarization,
+    preprocess_classification,
+    preprocess_causal_lm,
+)
+
+
+def _stream_to_dataset(
     dataset_name: str,
     config_name: Optional[str],
-    train_samples: int,
-    eval_samples: int,
-    required_columns: List[str],
-    preprocess_function: Callable,
-) -> Dict[str, datasets.Dataset]:
-
-    # Validate config + columns using streaming
-    validate_dataset(dataset_name, config_name, required_columns)
-
-    print(f"\nLoading SMALL dataset slice from: {dataset_name} (streaming mode)")
-
-    # ---- TRAIN STREAM ----
-    train_stream = datasets.load_dataset(
+    split: str,
+    samples: int
+) -> Dataset:
+    """
+    STREAMING:
+    ia maxim `samples` elemente din split și le pune într-un Dataset in-memory.
+    """
+    stream = datasets.load_dataset(
         dataset_name,
         config_name,
-        split="train",
+        split=split,
         streaming=True
     )
 
-    train_list = []
-    for i, item in enumerate(train_stream):
-        if i >= train_samples:
+    collected = []
+    for i, item in enumerate(stream):
+        if i >= samples:
             break
-        train_list.append(item)
+        collected.append(item)
 
-    train_dataset = datasets.Dataset.from_list(train_list)
+    return Dataset.from_list(collected)
 
-    # ---- EVAL: try validation → else try test ----
-    eval_dataset = None
 
-    for possible_split in ["validation", "test"]:
+def build_tokenizer(model_name: str) -> PreTrainedTokenizerBase:
+    """
+    Load tokenizer + asigură-te că are pad_token.
+    """
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token or tokenizer.unk_token
+    return tokenizer
+
+
+def load_task_datasets(
+    task: str,
+    model_name: str,
+    dataset_cfg: Dict[str, Any],
+    train_samples: int,
+    eval_samples: int,
+) -> Tuple[Dataset, Optional[Dataset], PreTrainedTokenizerBase]:
+    """
+    ENTRY POINT comun pentru toate task-urile:
+    - validează datasetul (streaming, 1 sample)
+    - încarcă train/eval cu streaming + sampling mic
+    - aplică preprocessor în funcție de task
+    """
+
+    dataset_name = dataset_cfg["dataset_name"]
+    config_name = dataset_cfg.get("config_name")
+    input_column = dataset_cfg["input_column"]
+    target_column = dataset_cfg.get("target_column")
+
+    required_cols = [input_column]
+    if target_column is not None:
+        required_cols.append(target_column)
+
+    # validate
+    validate_dataset(dataset_name, config_name, required_cols)
+
+    # tokenizer
+    tokenizer = build_tokenizer(model_name)
+
+    # streaming small slices
+    print(f"[data_loader] Streaming train split ({train_samples} samples)...")
+    train_ds = _stream_to_dataset(dataset_name, config_name, "train", train_samples)
+
+    eval_ds = None
+    for split in ("validation", "test"):
         try:
-            eval_stream = datasets.load_dataset(
-                dataset_name,
-                config_name,
-                split=possible_split,
-                streaming=True
-            )
-            eval_list = []
-            for i, item in enumerate(eval_stream):
-                if i >= eval_samples:
-                    break
-                eval_list.append(item)
-
-            eval_dataset = datasets.Dataset.from_list(eval_list)
-            print(f"Eval split used: {possible_split}")
+            print(f"[data_loader] Trying eval split '{split}'...")
+            eval_ds = _stream_to_dataset(dataset_name, config_name, split, eval_samples)
+            print(f"[data_loader] Using eval split '{split}'.")
             break
-
         except Exception:
             continue
 
-    if eval_dataset is None:
-        print("⚠ No evaluation split found!")
-    
-    # ---- Preprocess ----
-    print("Tokenizing using custom preprocess function...")
+    # choose preprocess function
+    if task == "summarization":
+        preprocess_fn = partial(
+            preprocess_summarization,
+            input_column=input_column,
+            target_column=target_column,
+            tokenizer=tokenizer,
+            max_input_len=dataset_cfg["max_input_len"],
+            max_target_len=dataset_cfg["max_target_len"],
+        )
+    elif task == "classification":
+        preprocess_fn = partial(
+            preprocess_classification,
+            input_column=input_column,
+            target_column=target_column,
+            tokenizer=tokenizer,
+            max_input_len=dataset_cfg["max_input_len"],
+        )
+    elif task == "causal-lm":
+        preprocess_fn = partial(
+            preprocess_causal_lm,
+            input_column=input_column,
+            tokenizer=tokenizer,
+            max_input_len=dataset_cfg["max_input_len"],
+        )
+    else:
+        raise ValueError(f"Unknown task '{task}'")
 
-    train_dataset = train_dataset.map(
-        preprocess_function,
+    # tokenize train
+    print(f"[data_loader] Tokenizing train dataset for task '{task}'...")
+    train_ds = train_ds.map(
+        preprocess_fn,
         batched=True,
-        remove_columns=train_dataset.column_names
+        remove_columns=train_ds.column_names
     )
 
-    if eval_dataset:
-        eval_dataset = eval_dataset.map(
-            preprocess_function,
+    # tokenize eval if exists
+    if eval_ds is not None:
+        print(f"[data_loader] Tokenizing eval dataset for task '{task}'...")
+        eval_ds = eval_ds.map(
+            preprocess_fn,
             batched=True,
-            remove_columns=eval_dataset.column_names
+            remove_columns=eval_ds.column_names
         )
 
-    return {
-        "train_dataset": train_dataset,
-        "eval_dataset": eval_dataset
-    }
-
-
-# import datasets
-# from typing import Dict, List, Any, Optional, Callable
-# from helpers.validation import validate_dataset
-
-# def prepare_dataset(
-#     dataset_name: str,
-#     config_name: Optional[str],
-#     train_samples: int,
-#     eval_samples: int,
-#     required_columns: List[str],
-#     preprocess_function: Callable,
-# ) -> Dict[str, datasets.Dataset]:
-
-#     # Validate only first sample (streaming-safe)
-#     validate_dataset(dataset_name, config_name, required_columns)
-
-#     print(f"\nLoading SMALL dataset slice from: {dataset_name} (streaming mode)")
-
-#     # ---- TRAIN STREAM ----
-#     train_stream = datasets.load_dataset(
-#         dataset_name,
-#         config_name,
-#         split="train",
-#         streaming=True
-#     )
-#     train_list = []
-
-#     for i, item in enumerate(train_stream):
-#         if i >= train_samples:
-#             break
-#         train_list.append(item)
-
-#     train_dataset = datasets.Dataset.from_list(train_list)
-
-#     # ---- EVAL STREAM ----
-#     split_names = datasets.get_dataset_split_names(dataset_name, config_name)
-#     eval_split = "validation" if "validation" in split_names else "test"
-
-#     eval_dataset = None
-
-#     if eval_split:
-#         eval_stream = datasets.load_dataset(
-#             dataset_name,
-#             config_name,
-#             split=eval_split,
-#             streaming=True
-#         )
-#         eval_list = []
-#         for i, item in enumerate(eval_stream):
-#             if i >= eval_samples:
-#                 break
-#             eval_list.append(item)
-
-#         eval_dataset = datasets.Dataset.from_list(eval_list)
-#         print(f"Eval split: {eval_split}")
-
-#     # ---- Preprocess ----
-#     print("Tokenizing using custom preprocess function...")
-
-#     train_dataset = train_dataset.map(
-#         preprocess_function,
-#         batched=True,
-#         remove_columns=train_dataset.column_names
-#     )
-
-#     if eval_dataset:
-#         eval_dataset = eval_dataset.map(
-#             preprocess_function,
-#             batched=True,
-#             remove_columns=eval_dataset.column_names
-#         )
-
-#     return {
-#         "train_dataset": train_dataset,
-#         "eval_dataset": eval_dataset
-#     }
+    return train_ds, eval_ds, tokenizer

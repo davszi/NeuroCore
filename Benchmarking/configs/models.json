@@ -1,0 +1,14 @@
+{
+  "summarization": [
+    "t5-small",
+    "facebook/bart-base"
+  ],
+  "classification": [
+    "distilbert-base-uncased",
+    "albert-base-v2"
+  ],
+  "causal-lm": [
+    "gpt2",
+    "Qwen/Qwen2.5-0.5B-Instruct"
+  ]
+}

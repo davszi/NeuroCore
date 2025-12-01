@@ -1,0 +1,16 @@
+{
+  "num_train_epochs": 5,
+  "per_device_train_batch_size": 4,
+  "gradient_accumulation_steps": 2,
+  "learning_rate": 5e-5,
+  "weight_decay": 0.01,
+  "logging_steps": 10,
+  "eval_steps": 50,
+  "save_steps": 1000,
+  "warmup_ratio": 0.0,
+  "fp16": false,
+  "bf16": false,
+  "evaluation_strategy": "no",
+  "report_to": "none",
+  "monitor_output_dir": "monitor_results"
+}

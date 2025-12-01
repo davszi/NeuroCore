@@ -1,0 +1,23 @@
+{
+  "summarization": {
+    "dataset_name": "cnn_dailymail",
+    "config_name": "3.0.0",
+    "input_column": "article",
+    "target_column": "highlights",
+    "max_input_len": 512,
+    "max_target_len": 128
+  },
+  "classification": {
+    "dataset_name": "dair-ai/emotion",
+    "config_name": null,
+    "input_column": "text",
+    "target_column": "label",
+    "max_input_len": 128
+  },
+  "causal-lm": {
+    "dataset_name": "roneneldan/TinyStories",
+    "config_name": null,
+    "input_column": "text",
+    "max_input_len": 256
+  }
+}

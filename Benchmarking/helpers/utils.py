@@ -1,61 +1,68 @@
-import time, psutil, shutil, torch, json, os
+import json
+import os
+import time
+import shutil
+from typing import Optional, Dict, Any
+
+import psutil
+import torch
+
+
+def _ensure_dir(path: str) -> None:
+    os.makedirs(path, exist_ok=True)
+
 
 def monitor_run(
-    model_name: str,
-    dataset_name: str,
-    task: str,
-    dtype: str,
-    seq_len: int,
-    attention_type: str,
-    fine_tune_method: str,
+    config: Dict[str, Any],
     train_loss: float,
-    eval_loss: float,
-    notes: str = "",
-    output_dir: str = None
-):
-    if output_dir is None:
-        output_dir = os.path.join(BASE_DIR, "monitor_results")
-
+    eval_loss: Optional[float],
+    training_time: float,
+    output_dir: str
+) -> Dict[str, Any]:
+    """
+    Log final metrics pentru un run (după train + eval).
+    """
     process = psutil.Process(os.getpid())
     cpu_usage = process.cpu_percent()
     ram_usage = process.memory_info().rss / (1024 ** 3)
     gpu_mem = torch.cuda.memory_allocated() / (1024 ** 3) if torch.cuda.is_available() else 0
     disk_used = shutil.disk_usage("/").used / (1024 ** 3)
 
-    metrics = {
+    record = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "model": model_name,
-        "dataset": dataset_name,
-        "task": task,
-        "dtype": dtype,
-        "seq_len": seq_len,
-        "attention": attention_type,
-        "fine_tune_method": fine_tune_method,
-        "train_loss": train_loss,
-        "eval_loss": eval_loss,
-        "cpu_usage_%": cpu_usage,
+        "config": config,
+        "train_loss": float(train_loss),
+        "eval_loss": float(eval_loss) if eval_loss is not None else None,
+        "training_time_sec": training_time,
+        "cpu_usage_percent": cpu_usage,
         "ram_usage_GB": round(ram_usage, 2),
         "gpu_mem_GB": round(gpu_mem, 2),
-        "disk_used_GB": round(disk_used, 3),
-        "notes": notes
+        "disk_used_GB": round(disk_used, 3)
     }
 
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, "metrics.jsonl")
-
+    _ensure_dir(output_dir)
+    path = os.path.join(output_dir, "run_metrics.jsonl")
     with open(path, "a") as f:
-        f.write(json.dumps(metrics) + "\n")
+        f.write(json.dumps(record) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
 
-    print(f"\n Saved monitoring metrics → {path}")
-    return metrics
+
+    print(f"[monitor] Saved run metrics → {path}")
+    return record
 
 
-def monitor_step(step, epoch, loss, learning_rate,output_dir, note=""):
+def monitor_step(
+    step: int,
+    epoch: float,
+    loss: float,
+    learning_rate: Optional[float],
+    output_dir: str,
+    note: str = ""
+) -> Dict[str, Any]:
     """
-    Logs metrics at a specific training step (used by callback)
+    Log per-step metrics (chemat de callback-ul HF Trainer).
     """
-
-    print("We use the path:", output_dir)
     process = psutil.Process(os.getpid())
     cpu_usage = process.cpu_percent()
     ram_usage = process.memory_info().rss / (1024 ** 3)
@@ -63,22 +70,23 @@ def monitor_step(step, epoch, loss, learning_rate,output_dir, note=""):
 
     record = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "type": "step",
         "step": step,
         "epoch": epoch,
         "loss": float(loss),
-        "learning_rate": float(learning_rate),
-        "cpu_usage_%": cpu_usage,
+        "learning_rate": float(learning_rate) if learning_rate is not None else None,
+        "cpu_usage_percent": cpu_usage,
         "ram_usage_GB": round(ram_usage, 2),
         "gpu_mem_GB": round(gpu_mem, 2),
         "note": note
     }
 
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, "metrics_loader.jsonl")
-
+    _ensure_dir(output_dir)
+    path = os.path.join(output_dir, "step_metrics.jsonl")
     with open(path, "a") as f:
         f.write(json.dumps(record) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
 
-    print(f"Logged step {step} → {path}")
+
+    print(f"[monitor] Logged step {step} → {path}")
     return record
