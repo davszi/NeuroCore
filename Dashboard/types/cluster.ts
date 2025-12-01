@@ -3,6 +3,7 @@ export interface NodeConfig {
   host: string;
   port: number;
   user: string;
+  password?: string;
 }
 
 export interface Gpu {

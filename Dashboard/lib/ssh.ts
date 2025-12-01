@@ -20,10 +20,10 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
 export async function runCommand(node: NodeConfig, command: string): Promise<string> {
   const ssh = new NodeSSH();
   
-  // 1. Get Credentials from Environment (Safety First)
-  // Ensure you have SSH_PASSWORD or SSH_PRIVATE_KEY_PATH in your .env.local file
+  // 1. Get Credentials from node config or environment
+  // Priority: node.password > SSH_PASSWORD env var
   const username = process.env.SSH_USERNAME || node.user;
-  const password = process.env.SSH_PASSWORD;
+  const password = node.password || process.env.SSH_PASSWORD;
   const privateKeyPath = process.env.SSH_PRIVATE_KEY_PATH;
 
   try {
