@@ -1,8 +1,10 @@
+// --- Node & Cluster Interfaces ---
 export interface NodeConfig {
   name: string;
   host: string;
   port: number;
   user: string;
+  password?: string;
 }
 
 export interface Gpu {
@@ -87,4 +89,26 @@ export interface Job {
   session?: string;
   uptime?: string;
   log_preview?: string[];
+}
+
+// --- New Benchmark Interfaces ---
+export interface MetricEntry {
+  step: number;
+  epoch?: number;
+  loss?: number;
+  perplexity?: number;
+  ram_usage_GB?: number;
+  gpu_mem_GB?: number;
+  runtime_seconds?: number;
+}
+
+export interface AttentionMetricsResponse {
+  sdpa: {
+    data: MetricEntry[];
+    runtimePerEpoch: { epoch: number; runtime_seconds: number }[];
+  };
+  flash: {
+    data: MetricEntry[];
+    runtimePerEpoch: { epoch: number; runtime_seconds: number }[];
+  };
 }

@@ -10,7 +10,22 @@ import {
   ResponsiveContainer,
   CartesianGrid
 } from "recharts";
-import { ClusterState } from "@/types/cluster"; // Import shared type
+import { ClusterState, AttentionMetricsResponse, GpuNode } from "@/types/cluster"; // Import shared types
+
+// Import Components
+import GpuMemoryBarChart from "../components/benchmarks/GpuMemoryBarChart";
+import RamUsageBarChart from "../components/benchmarks/RamUsageBarChart";
+import PerplexityChart from "../components/benchmarks/PerplexityChart";
+import RuntimePerEpochChart from "../components/benchmarks/RuntimePerEpochChart";
+import MLBenchmarkChart from "../components/benchmarks/MLBenchmarkChart";
+import RunConfigurationsTable from "../components/benchmarks/RunConfigurationsTable";
+
+interface GpuSnapshot {
+  last_updated_timestamp: string;
+  total_power_consumption_watts: number;
+  login_nodes: any[];
+  gpu_nodes: GpuNode[];
+}
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -46,9 +61,11 @@ function getRangeLabel(date: Date, range: string) {
 
 // --------------------- Benchmarks Page ---------------------
 export default function BenchmarksPage() {
-  const { data: snapshots = [], isLoading } = useSWR<ClusterState[]>("/api/node-history", fetcher, {
+  const { data: snapshots = [], isLoading } = useSWR<GpuSnapshot[]>("/api/node-history", fetcher, {
     refreshInterval: 60000, 
   });
+
+  const { data: attentionMetrics } = useSWR<AttentionMetricsResponse>("/api/attention-metrics", fetcher);
 
   const [range, setRange] = useState<"today" | "7d" | "month" | "1y">("today");
   const [smoothEnabled, setSmoothEnabled] = useState(true);
@@ -306,6 +323,147 @@ export default function BenchmarksPage() {
           })
         )}
       </section>
+
+      {/* ML Benchmarks */}
+      {attentionMetrics && (
+        <section className="space-y-6">
+          <h2 className="text-2xl font-bold text-white">ML Benchmarks</h2>
+
+          {/* Run Configurations and Training Loss Comparison */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Run Configurations Table */}
+            <div className="lg:col-span-1">
+              <RunConfigurationsTable />
+            </div>
+
+            {/* Training Loss Comparison Chart */}
+            <div className="lg:col-span-2">
+              <motion.div
+                className="bg-gray-900 border border-gray-700 rounded-lg p-6 h-full"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+              >
+                <h3 className="text-lg font-semibold text-white mb-4">
+                  Training Loss Comparison (SDPA Attention vs. Flash Attention)
+                </h3>
+                <div className="h-80">
+                  {/* Passing correctly typed data */}
+                  <MLBenchmarkChart
+                    baselineData={(attentionMetrics.sdpa?.data || []).map((d: any) => ({ step: d.step, loss: d.loss }))}
+                    flashData={(attentionMetrics.flash?.data || []).map((d: any) => ({ step: d.step, loss: d.loss }))}
+                  />
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Attention Mechanism Comparison */}
+      {attentionMetrics && (
+        <section className="space-y-6">
+          <h2 className="text-2xl font-bold text-white">Attention Mechanism Comparison</h2>
+          
+          {/* GPU Memory Usage and RAM Usage Charts - Side by Side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* GPU Memory Usage Chart */}
+            <motion.div
+              className="bg-gray-900 border border-gray-700 rounded-lg p-6"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">GPU Memory Usage</h3>
+              <p className="text-xs text-gray-500 mb-4">(Total: {94} GB per GPU)</p>
+              <GpuMemoryBarChart
+                sdpaData={attentionMetrics.sdpa?.data || []}
+                flashData={attentionMetrics.flash?.data || []}
+              />
+            </motion.div>
+
+            {/* RAM Usage Chart */}
+            <motion.div
+              className="bg-gray-900 border border-gray-700 rounded-lg p-6"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: 0.05 }}
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">RAM Usage</h3>
+              <p className="text-xs text-gray-500 mb-4">(Total: {1100} GB / 1.1 TB)</p>
+              <RamUsageBarChart
+                sdpaData={attentionMetrics.sdpa?.data || []}
+                flashData={attentionMetrics.flash?.data || []}
+              />
+            </motion.div>
+          </div>
+
+          {/* Insight Box */}
+          <motion.div
+            className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, delay: 0.1 }}
+          >
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <h4 className="text-blue-300 font-semibold mb-1">Key Insight</h4>
+                <p className="text-gray-300 text-sm">
+                  Both Flash Attention and SDPA Attention consume almost identical GPU Memory and RAM. 
+                  This tells us that performance differences come from <span className="text-blue-400 font-medium">algorithmic speed</span>, not memory usage. 
+                  Memory is not a bottleneck here.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Perplexity Evolution and Runtime per Epoch Charts - Side by Side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Perplexity Evolution Chart */}
+            <motion.div
+              className="bg-gray-900 border border-gray-700 rounded-lg p-6"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: 0.1 }}
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Perplexity Evolution</h3>
+              <div className="h-64">
+                <PerplexityChart
+                  sdpaData={attentionMetrics.sdpa?.data || []}
+                  flashData={attentionMetrics.flash?.data || []}
+                />
+              </div>
+            </motion.div>
+
+            {/* Runtime per Epoch Chart */}
+            <motion.div
+              className="bg-gray-900 border border-gray-700 rounded-lg p-6"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: 0.2 }}
+            >
+              <h3 className="text-lg font-semibold text-white mb-2">Runtime per Epoch (seconds)</h3>
+              <div className="text-sm text-gray-400 mb-4 space-y-1">
+                <p className="italic">
+                  Time taken to complete each training epoch. Lower runtime indicates faster training.
+                </p>
+                <p className="text-xs text-gray-500">
+                  <span className="text-yellow-400">Note:</span> Epoch 0 includes initial setup time. Subsequent epochs show runtime for that epoch only.
+                </p>
+              </div>
+              <div className="h-64">
+                <RuntimePerEpochChart
+                  sdpaRuntime={attentionMetrics.sdpa?.runtimePerEpoch || []}
+                  flashRuntime={attentionMetrics.flash?.runtimePerEpoch || []}
+                />
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
