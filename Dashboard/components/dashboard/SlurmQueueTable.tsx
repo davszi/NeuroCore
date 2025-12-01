@@ -1,7 +1,6 @@
 import React from 'react';
 import { useCluster } from '@/context/ClusterContext';
 import { HiOutlineRefresh } from 'react-icons/hi';
-// No need to import SlurmPartition explicitly because useCluster already types 'clusterState' correctly!
 
 export default function SlurmQueueTable() {
   const { clusterState, isStateLoading, stateError } = useCluster();

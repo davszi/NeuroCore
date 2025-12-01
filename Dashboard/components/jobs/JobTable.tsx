@@ -13,11 +13,9 @@ const JobStatusIndicator: React.FC<{ isCpu?: boolean }> = ({ isCpu }) => (
 );
 
 export default function JobTable() {
-  // 1. All Hooks MUST be at the top level
   const { jobs, isJobsLoading, jobsError } = useCluster();
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 2. Define useMemo here (Always run it, even if empty)
   const filteredJobs = useMemo(() => {
     if (!jobs) return [];
     const term = searchTerm.toLowerCase();
@@ -29,7 +27,6 @@ export default function JobTable() {
     );
   }, [jobs, searchTerm]);
 
-  // 3. NOW we can do conditional returns
   if (isJobsLoading && !jobsError) {
     return (
       <div className="flex items-center justify-center h-48 bg-gray-900 rounded-lg">
@@ -57,7 +54,6 @@ export default function JobTable() {
 
   return (
     <div className="bg-gray-900 shadow-md rounded-lg overflow-hidden border border-gray-700">
-      {/* Search Input */}
       <div className="p-4">
         <input
           type="text"
@@ -94,7 +90,9 @@ export default function JobTable() {
               </tr>
             ) : (
               filteredJobs.map((job) => {
-                const isCpu = job.gpu_memory_usage_mib === 0;
+                // FIXED: Detect CPU job by checking if cpu_percent exists, NOT if gpu memory is 0.
+                const isCpu = job.cpu_percent !== undefined;
+                
                 return (
                   <tr
                     key={`${job.node}-${job.pid}-${job.process_name}`}
@@ -114,7 +112,7 @@ export default function JobTable() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-300">
                       {isCpu
-                        ? `${job.cpu_percent?.toFixed(1)} %`
+                        ? `${(job.cpu_percent || 0).toFixed(1)} %` // Fallback to 0 just in case
                         : `${job.gpu_memory_usage_mib.toFixed(0)} MiB`}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-400 truncate max-w-sm">

@@ -39,18 +39,6 @@ export interface LoginNode {
   active_usernames: string[];
 }
 
-export interface Job {
-  node: string;
-  user: string;
-  pid: number;
-  process_name: string;
-  gpu_memory_usage_mib: number;
-  cpu_percent?: number;
-  session?: string;      
-  uptime?: string;      
-  log_preview?: string[];
-}
-
 export interface StorageVolume {
   mount_point: string;
   usage_percent: number;
@@ -87,4 +75,16 @@ export interface ClusterState {
   storage: StorageVolume[];
   slurm_queue_info: SlurmPartition[];
   user_storage?: UserStorage[];
+}
+
+export interface Job {
+  node: string;
+  user: string;
+  pid: number;
+  process_name: string;
+  gpu_memory_usage_mib: number;
+  cpu_percent?: number;
+  session?: string;
+  uptime?: string;
+  log_preview?: string[];
 }

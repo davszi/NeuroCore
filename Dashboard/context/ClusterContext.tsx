@@ -1,9 +1,10 @@
-import React, { createContext, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, ReactNode } from 'react';
 import useSWR from 'swr';
 import { 
   ClusterState, 
   Job, 
   UserStorage, 
+  // We import these to ensure types align, even if not explicitly used in props here
   GpuNode, 
   LoginNode, 
   StorageVolume, 
@@ -11,83 +12,32 @@ import {
 } from '@/types/cluster';
 
 // --- Configuration ---
-const REFRESH_INTERVAL_MS = 5000;      
-const HISTORY_SAVE_INTERVAL_MS = 5 * 60 * 1000; 
+const POLLING_INTERVAL = 10000; // Poll RAM cache every 10s
 
-// --- 1. Great Mock Data (Realistic Fallback) ---
-const FALLBACK_CLUSTER_STATE: ClusterState = {
+// --- Fallback Data ---
+const EMPTY_STATE: ClusterState = {
   last_updated_timestamp: new Date().toISOString(),
-  total_power_consumption_watts: 450,
-  login_nodes: [
-    { 
-      node_name: 'login-01 (Preview)', 
-      cores_total: 64, 
-      mem_total_gb: 256, 
-      cpu_util_percent: 12, 
-      mem_util_percent: 45, 
-      active_users: 3, 
-      active_usernames: ['alice', 'bob', 'charlie']
-    },
-  ],
-  storage: [
-    { mount_point: '/scratch', usage_percent: 75, used_tib: 15.5, total_tib: 20 },
-    { mount_point: 'CEPH:/home', usage_percent: 42, used_tib: 4.2, total_tib: 10 },
-  ],
-  slurm_queue_info: [
-    { 
-      partition: 'gpu-h100', 
-      cpu_free: 10, 
-      cpu_allocated: 54, 
-      gpu_free: 2, 
-      gpu_allocated: 6, 
-      mem_free_gb: 120, 
-      mem_allocated_gb: 400, 
-      interactive_jobs_running: 2, 
-      interactive_jobs_pending: 1, 
-      batch_jobs_running: 4, 
-      batch_jobs_pending: 0 
-    }
-  ],
-  gpu_nodes: [
-    {
-      node_name: 'gpu-node-01 (Preview)',
-      cores_total: 128,
-      mem_total_gb: 512,
-      cpu_util_percent: 88,
-      mem_util_percent: 60,
-      gpu_summary_name: 'NVIDIA H100',
-      active_users: 1,
-      active_usernames: ['dave'],
-      gpus: [
-        { gpu_id: 0, gpu_name: 'H100', utilization_percent: 98, memory_used_mib: 78000, memory_total_mib: 80000, temperature_celsius: 72, power_draw_watts: 350, power_limit_watts: 700 },
-        { gpu_id: 1, gpu_name: 'H100', utilization_percent: 0, memory_used_mib: 400, memory_total_mib: 80000, temperature_celsius: 32, power_draw_watts: 50, power_limit_watts: 700 },
-      ]
-    }
-  ],
-  user_storage: [
-    { username: 'alice', used_storage_space_gb: 120.5, total_files: 5400, mount_point: '/scratch' },
-    { username: 'bob', used_storage_space_gb: 850.2, total_files: 12000, mount_point: '/scratch' },
-  ]
+  total_power_consumption_watts: 0,
+  login_nodes: [],
+  gpu_nodes: [],
+  storage: [],
+  slurm_queue_info: [],
 };
 
-const FALLBACK_JOBS: Job[] = [
-  { node: 'gpu-node-01', user: 'dave', pid: 101, process_name: 'python train_llm.py', gpu_memory_usage_mib: 78000 },
-  { node: 'login-01', user: 'alice', pid: 204, process_name: 'vscode-server', gpu_memory_usage_mib: 0, cpu_percent: 15.5 },
-];
+// --- Mock Data for Initial Load Safety ---
+const FALLBACK_JOBS: Job[] = [];
+const MOCK_USER_STORAGE: UserStorage[] = [];
 
-const MOCK_USER_STORAGE: UserStorage[] = FALLBACK_CLUSTER_STATE.user_storage!;
-
-
-// --- 2. Context Definition ---
 interface ClusterContextType {
   clusterState: ClusterState;
   nodesState: ClusterState;
   jobs: Job[];
   userStorage: UserStorage[];
-  getJobById: (sessionId: string) => Job | undefined;
-  isStateLoading: boolean;
+  getJobById: (id: string) => Job | undefined;
+  isLoading: boolean;
   isJobsLoading: boolean;
   isNodesLoading: boolean;
+  isStateLoading: boolean;
   stateError: any;
   jobsError: any;
   nodesError: any;
@@ -102,74 +52,54 @@ const fetcher = (url: string) => fetch(url).then((res) => {
 
 export const ClusterProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   
-  // --- A. Real-Time Data Polling ---
-  const {
-    data: realClusterState,
+  // 1. Fetch Preview (History from Disk) - Runs ONCE on load
+  const { data: previewData } = useSWR<ClusterState>('/api/preview', fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    shouldRetryOnError: false,
+  });
+
+  // 2. Fetch Realtime (RAM from Server) - Polls every 10s
+  const { 
+    data: liveState, 
     error: stateError,
-    isLoading: isStateLoading,
-  } = useSWR<ClusterState>('/api/cluster-state', fetcher, {
-    refreshInterval: REFRESH_INTERVAL_MS,
-    revalidateOnFocus: false,
-    dedupingInterval: 2000,
-  });
-
-  const {
-    data: realJobs,
-    error: jobsError,
-    isLoading: isJobsLoading,
-  } = useSWR<Job[]>('/api/jobs', fetcher, {
-    refreshInterval: REFRESH_INTERVAL_MS,
-    revalidateOnFocus: false,
-    dedupingInterval: 2000,
-  });
-
-  const {
-    data: realNodes,
-    error: nodesError,
-    isLoading: isNodesLoading,
+    isLoading: isStateLoading 
   } = useSWR<ClusterState>('/api/node-state', fetcher, {
-    refreshInterval: REFRESH_INTERVAL_MS,
-    revalidateOnFocus: false,
-    dedupingInterval: 2000,
+    refreshInterval: POLLING_INTERVAL,
   });
 
-  // --- B. Background History Saver (Every 5 Minutes) ---
-  useEffect(() => {
-    const saveHistory = async () => {
-      try {
-        console.log(`[Auto-Save] Triggering history save at ${new Date().toISOString()}...`);
-        await fetch('/api/node-state?save=true'); 
-      } catch (err) {
-        console.error("[Auto-Save] Failed to trigger save:", err);
-      }
-    };
-    const intervalId = setInterval(saveHistory, HISTORY_SAVE_INTERVAL_MS);
-    return () => clearInterval(intervalId);
-  }, []);
+  const { 
+    data: liveJobs, 
+    error: jobsError,
+    isLoading: isJobsLoading
+  } = useSWR<Job[]>('/api/jobs', fetcher, {
+    refreshInterval: POLLING_INTERVAL,
+  });
 
-  // --- C. Data merging with Great Mock Data ---
-  // If data is loading or missing, we show the rich Fallback data
-  const clusterState = realClusterState || FALLBACK_CLUSTER_STATE;
-  const nodesState = realNodes || FALLBACK_CLUSTER_STATE;
-  const jobs = realJobs || FALLBACK_JOBS;
-  const userStorage = realClusterState?.user_storage || MOCK_USER_STORAGE;
+  // 3. Smart Merge: Use Live if available, otherwise Preview, otherwise Empty
+  const activeState = liveState || previewData || EMPTY_STATE;
+  const activeJobs = liveJobs || FALLBACK_JOBS;
+  const userStorage = activeState.user_storage || MOCK_USER_STORAGE;
 
-  const getJobById = (pidOrId: string): Job | undefined => {
-    return jobs.find((job) => String(job.pid) === pidOrId || job.session === pidOrId);
-  };
+  const getJobById = (id: string) => activeJobs.find(j => String(j.pid) === id || j.session === id);
 
   const value = {
-    clusterState,
-    nodesState,
-    jobs,
+    clusterState: activeState, // Shared structure
+    nodesState: activeState,   // Shared structure
+    jobs: activeJobs,
     userStorage,
     getJobById,
+    
+    // Loading states
+    isLoading: (!liveState && !previewData),
     isStateLoading,
     isJobsLoading,
-    isNodesLoading,
+    isNodesLoading: isStateLoading, // They come from the same API source in this architecture
+
+    // Errors
     stateError,
     jobsError,
-    nodesError
+    nodesError: stateError
   };
 
   return (

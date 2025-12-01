@@ -1,8 +1,7 @@
-// lib/ssh.ts
 import { NodeSSH } from 'node-ssh';
 import { NodeConfig } from '@/types/cluster';
 
-// Helper to timeout a promise if it takes too long
+// Helper to timeout a promise
 const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
   return Promise.race([
     promise,
@@ -14,20 +13,17 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
 
 /**
  * Executes a command on a remote node securely.
- * Returns the stdout string if successful, or empty string if failed
- * It will NOT crash the app if a node is offline
+ * @param timeoutMs Default 60000ms (60s). Increased to support slow nodes.
  */
-export async function runCommand(node: NodeConfig, command: string): Promise<string> {
+export async function runCommand(node: NodeConfig, command: string, timeoutMs: number = 60000): Promise<string> {
   const ssh = new NodeSSH();
   
-  // 1. Get Credentials from Environment (Safety First)
-  // Ensure you have SSH_PASSWORD or SSH_PRIVATE_KEY_PATH in your .env.local file
   const username = process.env.SSH_USERNAME || node.user;
   const password = process.env.SSH_PASSWORD;
   const privateKeyPath = process.env.SSH_PRIVATE_KEY_PATH;
 
   try {
-    // 2. Connect with a strict 5-second timeout
+    // 1. Connect (Give it 20s to handshake)
     await withTimeout(
       ssh.connect({
         host: node.host,
@@ -35,29 +31,27 @@ export async function runCommand(node: NodeConfig, command: string): Promise<str
         username: username,
         password: password,
         privateKeyPath: privateKeyPath,
-        readyTimeout: 5000, 
-        // If you get "handshake failed", try adding: algorithms: { serverHostKey: ['ssh-rsa', 'ssh-dss'] }
+        readyTimeout: 20000, 
       }),
-      5000
+      20000
     );
 
-    // 3. Execute
-    const result = await ssh.execCommand(command);
+    // 2. Execute with Custom Timeout
+    const result = await withTimeout(ssh.execCommand(command), timeoutMs);
 
-    // 4. Clean up
     ssh.dispose();
 
+    // 3. Return stdout even if code is non-zero (so we can handle || true in bash)
     if (result.code !== 0) {
-      // Log warning but don't crash
-      console.warn(`[SSH] ${node.name}: Command returned exit code ${result.code}`);
-      return ""; 
+      console.warn(`[SSH] ${node.name}: Command returned code ${result.code}`);
+      // Return output anyway, often contains useful error info or partial data
+      return result.stdout; 
     }
 
     return result.stdout;
 
   } catch (error) {
     ssh.dispose();
-    // Log error but don't crash
     console.error(`[SSH] ${node.name} Connection Error: ${(error as Error).message}`);
     return "";
   }

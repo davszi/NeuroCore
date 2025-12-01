@@ -2,15 +2,24 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  
+  // In Next.js 15, 'instrumentationHook' is automatic if instrumentation.ts exists.
+  // We use the stable 'serverExternalPackages' instead of the experimental option.
+  serverExternalPackages: ['ssh2', 'node-ssh'],
 
-  eslint: {
-    // ❗ allow building even if ESLint finds errors
-    ignoreDuringBuilds: true,
-  },
-
-  typescript: {
-    // ❗ allow building even if TypeScript finds type errors
-    ignoreBuildErrors: true,
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Ensure native modules are not bundled on the client side
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        child_process: false,
+        ssh2: false, 
+      };
+    }
+    return config;
   },
 };
 
