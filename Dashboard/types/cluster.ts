@@ -1,3 +1,5 @@
+// types/cluster.ts
+
 // --- Node & Cluster Interfaces ---
 export interface NodeConfig {
   name: string;
@@ -91,15 +93,23 @@ export interface Job {
   log_preview?: string[];
 }
 
-// --- New Benchmark Interfaces ---
+// --- Benchmark Interfaces ---
 export interface MetricEntry {
+  timestamp: string;
+  type: string;
   step: number;
-  epoch?: number;
-  loss?: number;
-  perplexity?: number;
-  ram_usage_GB?: number;
-  gpu_mem_GB?: number;
-  runtime_seconds?: number;
+  epoch: number;
+  loss: number;
+  perplexity: number;
+  learning_rate: number;
+  training_time_seconds: number;
+  training_time_hours: number;
+  'cpu_usage_%': number;
+  ram_usage_GB: number;
+  gpu_mem_GB: number;
+  note: string;
+  // Calculated fields potentially added by API:
+  runtime_seconds?: number; 
 }
 
 export interface AttentionMetricsResponse {
@@ -111,4 +121,17 @@ export interface AttentionMetricsResponse {
     data: MetricEntry[];
     runtimePerEpoch: { epoch: number; runtime_seconds: number }[];
   };
+}
+
+// --- Inventory Config Interface ---
+export interface GpuInventoryNode {
+  gpu_name: string;
+  power_limit_watts: number;
+  cores_total: number;
+  mem_total_gb: number;
+}
+
+export interface GpuInventory {
+  defaults: GpuInventoryNode;
+  nodes: { [nodeName: string]: GpuInventoryNode };
 }

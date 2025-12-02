@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
-// Import the shared type instead of redefining it
 import { MetricEntry } from '@/types/cluster';
 
 export default async function handler(
@@ -13,7 +12,6 @@ export default async function handler(
   }
 
   try {
-    // Test: Return basic info first
     if (req.query.test === 'true') {
       const cwd = process.cwd();
       const sdpaPath = path.join(cwd, '..', 'Benchmarking', 'sdpa_attention.jsonl');
@@ -26,12 +24,11 @@ export default async function handler(
         flashExists: fs.existsSync(flashPath),
       });
     }
-    // process.cwd() is Dashboard folder, go up one level to project root
+    
     const cwd = process.cwd();
     const sdpaPath = path.join(cwd, '..', 'Benchmarking', 'sdpa_attention.jsonl');
     const flashPath = path.join(cwd, '..', 'Benchmarking', 'metrics_flash.jsonl');
 
-    // Read and parse JSONL files
     const readJsonl = (filePath: string): MetricEntry[] => {
       if (!fs.existsSync(filePath)) {
         console.error(`[attention-metrics] File not found: ${filePath}`);
@@ -46,13 +43,13 @@ export default async function handler(
             try {
               return JSON.parse(line);
             } catch (parseError) {
-              console.error(`[attention-metrics] Failed to parse line ${index + 1} in ${filePath}:`, parseError);
+              console.error(`[attention-metrics] Failed to parse line ${index + 1}:`, parseError);
               return null;
             }
           })
           .filter((entry): entry is MetricEntry => entry !== null);
       } catch (readError) {
-        console.error(`[attention-metrics] Failed to read file ${filePath}:`, readError);
+        console.error(`[attention-metrics] Failed to read file:`, readError);
         return [];
       }
     };
@@ -60,35 +57,18 @@ export default async function handler(
     const sdpaData = readJsonl(sdpaPath);
     const flashData = readJsonl(flashPath);
 
-    // If both files are empty, return error
     if (sdpaData.length === 0 && flashData.length === 0) {
-      return res.status(404).json({
-        error: 'No data found',
-        details: 'Both JSONL files are empty or not found',
-        paths: {
-          sdpaPath,
-          flashPath,
-          sdpaExists: fs.existsSync(sdpaPath),
-          flashExists: fs.existsSync(flashPath),
-        }
-      });
+      return res.status(404).json({ error: 'No data found' });
     }
 
-    // Calculate runtime per epoch
     const calculateRuntimePerEpoch = (data: MetricEntry[]) => {
-      if (!data || data.length === 0) {
-        return [];
-      }
+      if (!data || data.length === 0) return [];
       
-      // Group entries by epoch
       const epochMap: Record<number, MetricEntry[]> = {};
       
       data.forEach(entry => {
-        // Safe check for epoch
         const epochNum = Math.floor(entry.epoch || 0);
-        if (!epochMap[epochNum]) {
-          epochMap[epochNum] = [];
-        }
+        if (!epochMap[epochNum]) epochMap[epochNum] = [];
         epochMap[epochNum].push(entry);
       });
 
@@ -96,33 +76,21 @@ export default async function handler(
       
       return sortedEpochs.map((epoch, index) => {
         const epochEntries = epochMap[epoch];
+        // Sort by training_time_seconds to find start/end of epoch
+        epochEntries.sort((a, b) => a.training_time_seconds - b.training_time_seconds);
         
-        // Sort entries by training_time_seconds
-        // Safe check for training_time_seconds
-        epochEntries.sort((a, b) => (a.runtime_seconds || 0) - (b.runtime_seconds || 0));
-        
-        // Note: The logic in the original file relied on 'training_time_seconds' field 
-        // which might not exist on the shared MetricEntry type if we are strict.
-        // We will cast to 'any' here to safely access the JSONL specific fields 
-        // while keeping the shared type clean.
-        
-        const firstEntry = epochEntries[0] as any;
-        const lastEntry = epochEntries[epochEntries.length - 1] as any;
+        const firstEntry = epochEntries[0];
+        const lastEntry = epochEntries[epochEntries.length - 1];
         
         const tFirst = firstEntry.training_time_seconds || 0;
         const tLast = lastEntry.training_time_seconds || 0;
 
-        // For epoch 0
         if (index === 0) {
-          return {
-            epoch,
-            runtime_seconds: tLast - tFirst || tLast,
-          };
+          return { epoch, runtime_seconds: tLast - tFirst || tLast };
         }
         
-        // For subsequent epochs
         const prevEpoch = sortedEpochs[index - 1];
-        const prevEpochEntries = epochMap[prevEpoch] as any[];
+        const prevEpochEntries = epochMap[prevEpoch];
         prevEpochEntries.sort((a, b) => a.training_time_seconds - b.training_time_seconds);
         const prevEpochEndTime = prevEpochEntries[prevEpochEntries.length - 1].training_time_seconds || 0;
         
@@ -139,20 +107,13 @@ export default async function handler(
     const flashRuntimePerEpoch = calculateRuntimePerEpoch(flashData);
 
     return res.status(200).json({
-      sdpa: {
-        data: sdpaData,
-        runtimePerEpoch: sdpaRuntimePerEpoch,
-      },
-      flash: {
-        data: flashData,
-        runtimePerEpoch: flashRuntimePerEpoch,
-      },
+      sdpa: { data: sdpaData, runtimePerEpoch: sdpaRuntimePerEpoch },
+      flash: { data: flashData, runtimePerEpoch: flashRuntimePerEpoch },
     });
-  } catch (error: any) {
+
+  } catch (error: unknown) {
     console.error('[attention-metrics] Error:', error);
-    return res.status(500).json({ 
-      error: 'Failed to load metrics',
-      details: error.message
-    });
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: 'Failed to load metrics', details: msg });
   }
 }

@@ -1,11 +1,10 @@
 import { runCommand } from './ssh';
-import { NodeConfig, GpuNode, LoginNode, Job, Gpu, SlurmPartition, StorageVolume, UserStorage } from '@/types/cluster';
+import { NodeConfig, GpuNode, LoginNode, Job, Gpu, SlurmPartition, StorageVolume, UserStorage, GpuInventory } from '@/types/cluster';
 
 // --- A. Fetch Node Hardware ---
-export async function fetchNodeHardware(node: NodeConfig, gpuInventory: any) {
+export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInventory) {
   const DELIMITER = "---SECTION---";
   
-  // 1. HARDWARE CMD: Added "|| true" to prevent Code 1 on CPU nodes
   const cmd = [
     `nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit --format=csv,noheader,nounits || true`,
     `echo "${DELIMITER}"`,
@@ -98,7 +97,6 @@ export async function fetchNodeHardware(node: NodeConfig, gpuInventory: any) {
 export async function fetchJobsFromNode(node: NodeConfig): Promise<Job[]> {
   const records: Job[] = [];
 
-  // Added || true
   const JOB_CMD_GPU = `nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory --format=csv,noheader,nounits || true`;
   const gpuOutput = await runCommand(node, JOB_CMD_GPU);
 
@@ -215,13 +213,9 @@ export async function fetchClusterStats(node: NodeConfig) {
 export async function fetchUserStorage(node: NodeConfig, targetDir: string): Promise<UserStorage[]> {
   console.log(`[Storage] Fetching ${targetDir}...`);
 
-  // We revert to the command that worked for you before.
-  // Using 'bash -c' ensures loops and wildcards work correctly.
-  // We construct JSON directly on the server.
   const CMD = `bash -c 'echo "["; first=1; for dir in ${targetDir}/*; do [ -d "$dir" ] || continue; user=$(basename "$dir"); used=$(du -sk "$dir" 2>/dev/null | awk "{print \\$1}"); [ -z "$used" ] && used=0; file_count=$(find "$dir" -maxdepth 3 -type f 2>/dev/null | wc -l); [ $first -eq 0 ] && echo ","; first=0; echo "{ \\"username\\": \\"$user\\", \\"used_kb\\": $used, \\"files\\": $file_count }"; done; echo "]"'`;
 
   try {
-    // 60s Timeout (via default)
     const output = await runCommand(node, CMD);
     
     if (!output || !output.trim()) {
@@ -229,7 +223,6 @@ export async function fetchUserStorage(node: NodeConfig, targetDir: string): Pro
       return [];
     }
 
-    // Locate the JSON part in case of banner text
     const startIndex = output.indexOf('[');
     const endIndex = output.lastIndexOf(']');
     
@@ -241,12 +234,16 @@ export async function fetchUserStorage(node: NodeConfig, targetDir: string): Pro
     const jsonStr = output.substring(startIndex, endIndex + 1);
     const rawData = JSON.parse(jsonStr);
 
-    // Map to our interface
-    const users: UserStorage[] = rawData.map((u: any) => ({
+    interface RawStorageUser {
+      username: string;
+      used_kb: string | number;
+      files: string | number;
+    }
+
+    const users: UserStorage[] = rawData.map((u: RawStorageUser) => ({
       username: u.username,
-      // Convert KB to GB
-      used_storage_space_gb: Math.round((parseInt(u.used_kb || 0) / 1024 / 1024) * 100) / 100,
-      total_files: parseInt(u.files || 0)
+      used_storage_space_gb: Math.round((Number(u.used_kb || 0) / 1024 / 1024) * 100) / 100,
+      total_files: Number(u.files || 0)
     }));
 
     return users.sort((a, b) => b.used_storage_space_gb - a.used_storage_space_gb);

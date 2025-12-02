@@ -1,9 +1,5 @@
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-
-interface MetricEntry {
-  step: number;
-  gpu_mem_GB: number;
-}
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { MetricEntry } from '@/types/cluster';
 
 interface Props {
   sdpaData: MetricEntry[];
@@ -15,22 +11,16 @@ const TOTAL_GPU_MEMORY_GB = 94; // H100 NVL total memory
 export default function GpuMemoryDonutChart({ sdpaData, flashData }: Props) {
   // Calculate average GPU memory usage
   const sdpaAvg = sdpaData.length > 0
-    ? sdpaData.reduce((sum, d) => sum + d.gpu_mem_GB, 0) / sdpaData.length
+    ? sdpaData.reduce((sum, d) => sum + (d.gpu_mem_GB || 0), 0) / sdpaData.length
     : 0;
   
   const flashAvg = flashData.length > 0
-    ? flashData.reduce((sum, d) => sum + d.gpu_mem_GB, 0) / flashData.length
+    ? flashData.reduce((sum, d) => sum + (d.gpu_mem_GB || 0), 0) / flashData.length
     : 0;
 
   const sdpaPercentage = (sdpaAvg / TOTAL_GPU_MEMORY_GB) * 100;
   const flashPercentage = (flashAvg / TOTAL_GPU_MEMORY_GB) * 100;
   const difference = flashAvg - sdpaAvg;
-
-  // Data for donut chart (showing average usage)
-  const chartData = [
-    { name: 'SDPA Attention', value: sdpaAvg, percentage: sdpaPercentage, color: '#F87171' },
-    { name: 'Flash Attention', value: flashAvg, percentage: flashPercentage, color: '#34D399' },
-  ];
 
   // Data for the donut (used vs unused)
   const donutData = [
@@ -105,4 +95,3 @@ export default function GpuMemoryDonutChart({ sdpaData, flashData }: Props) {
     </div>
   );
 }
-

@@ -1,9 +1,5 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-
-interface MetricEntry {
-  step: number;
-  gpu_mem_GB: number;
-}
+import { MetricEntry } from '@/types/cluster';
 
 interface Props {
   sdpaData: MetricEntry[];
@@ -13,13 +9,12 @@ interface Props {
 const TOTAL_GPU_MEMORY_GB = 94; // H100 NVL total memory
 
 export default function GpuMemoryBarChart({ sdpaData, flashData }: Props) {
-  // Calculate average GPU memory usage
   const sdpaAvg = sdpaData.length > 0
-    ? sdpaData.reduce((sum, d) => sum + d.gpu_mem_GB, 0) / sdpaData.length
+    ? sdpaData.reduce((sum, d) => sum + (d.gpu_mem_GB || 0), 0) / sdpaData.length
     : 0;
   
   const flashAvg = flashData.length > 0
-    ? flashData.reduce((sum, d) => sum + d.gpu_mem_GB, 0) / flashData.length
+    ? flashData.reduce((sum, d) => sum + (d.gpu_mem_GB || 0), 0) / flashData.length
     : 0;
 
   const sdpaPercentage = (sdpaAvg / TOTAL_GPU_MEMORY_GB) * 100;
@@ -43,7 +38,6 @@ export default function GpuMemoryBarChart({ sdpaData, flashData }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Bar Chart */}
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
@@ -66,8 +60,9 @@ export default function GpuMemoryBarChart({ sdpaData, flashData }: Props) {
             />
             <Tooltip
               contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #4B5563' }}
-              formatter={(value: number, name: string, props: any) => [
-                `${value.toFixed(2)} GB (${props.payload.percentage.toFixed(2)}% of ${TOTAL_GPU_MEMORY_GB} GB)`,
+              // FIXED: payload is optional (?) and we fallback to 0
+              formatter={(value: number, name: string, props: { payload?: { percentage: number } }) => [
+                `${value.toFixed(2)} GB (${(props.payload?.percentage ?? 0).toFixed(2)}% of ${TOTAL_GPU_MEMORY_GB} GB)`,
                 name
               ]}
             />
@@ -80,7 +75,6 @@ export default function GpuMemoryBarChart({ sdpaData, flashData }: Props) {
         </ResponsiveContainer>
       </div>
 
-      {/* Detailed Metrics */}
       <div className="space-y-2">
         <div className="flex justify-between items-center p-3 bg-gray-800 rounded-lg border border-gray-700">
           <div className="flex items-center gap-2">
@@ -136,4 +130,3 @@ export default function GpuMemoryBarChart({ sdpaData, flashData }: Props) {
     </div>
   );
 }
-

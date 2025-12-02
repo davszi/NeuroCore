@@ -10,9 +10,8 @@ import {
   ResponsiveContainer,
   CartesianGrid
 } from "recharts";
-import { ClusterState, AttentionMetricsResponse, GpuNode } from "@/types/cluster"; // Import shared types
+import { ClusterState, AttentionMetricsResponse, MetricEntry } from "@/types/cluster";
 
-// Import Components
 import GpuMemoryBarChart from "../components/benchmarks/GpuMemoryBarChart";
 import RamUsageBarChart from "../components/benchmarks/RamUsageBarChart";
 import PerplexityChart from "../components/benchmarks/PerplexityChart";
@@ -20,32 +19,48 @@ import RuntimePerEpochChart from "../components/benchmarks/RuntimePerEpochChart"
 import MLBenchmarkChart from "../components/benchmarks/MLBenchmarkChart";
 import RunConfigurationsTable from "../components/benchmarks/RunConfigurationsTable";
 
-interface GpuSnapshot {
-  last_updated_timestamp: string;
-  total_power_consumption_watts: number;
-  login_nodes: any[];
-  gpu_nodes: GpuNode[];
-}
-
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+// --- Strict Types to fix build errors ---
+interface BenchmarkDataPoint {
+  timestamp: number;
+  label: string;
+  utilization: number;
+  temp?: number;
+  mem?: number;
+  fan?: number;
+  efficiency?: number;
+  // Allow flexible indexing for dynamic chart keys if needed, though specific props are safer
+  [key: string]: number | string | undefined;
+}
+
+// Intermediate type for the aggregation logic
+interface AggregatedPoint extends BenchmarkDataPoint {
+  count: number;
+}
+
 // --------------------- Smooth line helper ---------------------
-function smoothLine(data: any[], window = 3) {
+function smoothLine(data: BenchmarkDataPoint[], window = 3): BenchmarkDataPoint[] {
   if (!data.length) return data;
   return data.map((point, i) => {
     const start = Math.max(0, i - window + 1);
     const slice = data.slice(start, i + 1);
     
-    const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-    const extract = (key: string) => slice.map(p => p[key] ?? 0);
+    // Explicitly define specific keys we want to smooth
+    // This avoids "any" issues with dynamic key access
+    const avg = (getter: (p: BenchmarkDataPoint) => number | undefined) => {
+      const values = slice.map(getter).filter((v): v is number => v !== undefined);
+      if (values.length === 0) return 0;
+      return values.reduce((a, b) => a + b, 0) / values.length;
+    };
 
     return {
       ...point,
-      utilization: avg(extract('utilization')),
-      temp: point.temp !== undefined ? avg(extract('temp')) : undefined,
-      mem: point.mem !== undefined ? avg(extract('mem')) : undefined,
-      fan: point.fan !== undefined ? avg(extract('fan')) : undefined,
-      efficiency: point.efficiency !== undefined ? avg(extract('efficiency')) : undefined,
+      utilization: avg(p => p.utilization),
+      temp: point.temp !== undefined ? avg(p => p.temp) : undefined,
+      mem: point.mem !== undefined ? avg(p => p.mem) : undefined,
+      fan: point.fan !== undefined ? avg(p => p.fan) : undefined,
+      efficiency: point.efficiency !== undefined ? avg(p => p.efficiency) : undefined,
     };
   });
 }
@@ -61,7 +76,8 @@ function getRangeLabel(date: Date, range: string) {
 
 // --------------------- Benchmarks Page ---------------------
 export default function BenchmarksPage() {
-  const { data: snapshots = [], isLoading } = useSWR<GpuSnapshot[]>("/api/node-history", fetcher, {
+  // Use shared ClusterState type to fix "defined but never used" warning
+  const { data: snapshots = [], isLoading } = useSWR<ClusterState[]>("/api/node-history", fetcher, {
     refreshInterval: 60000, 
   });
 
@@ -77,7 +93,8 @@ export default function BenchmarksPage() {
     if (!snapshots || !snapshots.length) return [];
     
     const now = new Date();
-    const map: Record<string, any[]> = {};
+    // Strictly typed map
+    const map: Record<string, BenchmarkDataPoint[]> = {};
 
     snapshots.forEach((snap) => {
       const ts = new Date(snap.last_updated_timestamp).getTime();
@@ -118,28 +135,33 @@ export default function BenchmarksPage() {
     });
 
     return Object.entries(map).map(([name, data]) => {
-      const tempMap: Record<string, any> = {};
+      // FIX: Typed tempMap with AggregatedPoint to remove 'any'
+      const tempMap: Record<string, AggregatedPoint> = {};
       
       data.forEach((p) => {
         if (!tempMap[p.label]) {
           tempMap[p.label] = { ...p, count: 1 };
         } else {
-          tempMap[p.label].utilization += p.utilization;
-          if(p.temp !== undefined) tempMap[p.label].temp = (tempMap[p.label].temp || 0) + p.temp;
-          if(p.mem !== undefined) tempMap[p.label].mem = (tempMap[p.label].mem || 0) + p.mem;
-          if(p.efficiency !== undefined) tempMap[p.label].efficiency = (tempMap[p.label].efficiency || 0) + p.efficiency;
-          tempMap[p.label].count += 1;
+          const target = tempMap[p.label];
+          target.utilization += p.utilization;
+          
+          if(p.temp !== undefined && target.temp !== undefined) target.temp += p.temp;
+          if(p.mem !== undefined && target.mem !== undefined) target.mem += p.mem;
+          if(p.efficiency !== undefined && target.efficiency !== undefined) target.efficiency += p.efficiency;
+          
+          target.count += 1;
         }
       });
 
-      let aggregated = Object.values(tempMap).map((val: any) => ({
+      // FIX: Typed 'val' correctly
+      let aggregated: BenchmarkDataPoint[] = Object.values(tempMap).map((val: AggregatedPoint) => ({
         timestamp: val.timestamp,
-        utilization: val.utilization / val.count,
-        temp: val.temp ? val.temp / val.count : undefined,
-        mem: val.mem ? val.mem / val.count : undefined,
-        fan: val.fan ? val.fan / val.count : undefined,
-        efficiency: val.efficiency ? val.efficiency / val.count : undefined,
         label: val.label,
+        utilization: val.utilization / val.count,
+        temp: val.temp !== undefined ? val.temp / val.count : undefined,
+        mem: val.mem !== undefined ? val.mem / val.count : undefined,
+        fan: val.fan !== undefined ? val.fan / val.count : undefined,
+        efficiency: val.efficiency !== undefined ? val.efficiency / val.count : undefined,
       }));
 
       aggregated.sort((a, b) => a.timestamp - b.timestamp);
@@ -329,14 +351,11 @@ export default function BenchmarksPage() {
         <section className="space-y-6">
           <h2 className="text-2xl font-bold text-white">ML Benchmarks</h2>
 
-          {/* Run Configurations and Training Loss Comparison */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Run Configurations Table */}
             <div className="lg:col-span-1">
               <RunConfigurationsTable />
             </div>
 
-            {/* Training Loss Comparison Chart */}
             <div className="lg:col-span-2">
               <motion.div
                 className="bg-gray-900 border border-gray-700 rounded-lg p-6 h-full"
@@ -345,13 +364,12 @@ export default function BenchmarksPage() {
                 transition={{ duration: 0.25 }}
               >
                 <h3 className="text-lg font-semibold text-white mb-4">
-                  Training Loss Comparison (SDPA Attention vs. Flash Attention)
+                  Training Loss Comparison
                 </h3>
                 <div className="h-80">
-                  {/* Passing correctly typed data */}
                   <MLBenchmarkChart
-                    baselineData={(attentionMetrics.sdpa?.data || []).map((d: any) => ({ step: d.step, loss: d.loss }))}
-                    flashData={(attentionMetrics.flash?.data || []).map((d: any) => ({ step: d.step, loss: d.loss }))}
+                    baselineData={(attentionMetrics.sdpa?.data || []).map((d: MetricEntry) => ({ step: d.step, loss: d.loss || 0 }))}
+                    flashData={(attentionMetrics.flash?.data || []).map((d: MetricEntry) => ({ step: d.step, loss: d.loss || 0 }))}
                   />
                 </div>
               </motion.div>
@@ -365,32 +383,19 @@ export default function BenchmarksPage() {
         <section className="space-y-6">
           <h2 className="text-2xl font-bold text-white">Attention Mechanism Comparison</h2>
           
-          {/* GPU Memory Usage and RAM Usage Charts - Side by Side */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* GPU Memory Usage Chart */}
-            <motion.div
-              className="bg-gray-900 border border-gray-700 rounded-lg p-6"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25 }}
-            >
+            <motion.div className="bg-gray-900 border border-gray-700 rounded-lg p-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
               <h3 className="text-lg font-semibold text-white mb-4">GPU Memory Usage</h3>
-              <p className="text-xs text-gray-500 mb-4">(Total: {94} GB per GPU)</p>
+              <p className="text-xs text-gray-500 mb-4">(Total: 94 GB per GPU)</p>
               <GpuMemoryBarChart
                 sdpaData={attentionMetrics.sdpa?.data || []}
                 flashData={attentionMetrics.flash?.data || []}
               />
             </motion.div>
 
-            {/* RAM Usage Chart */}
-            <motion.div
-              className="bg-gray-900 border border-gray-700 rounded-lg p-6"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, delay: 0.05 }}
-            >
+            <motion.div className="bg-gray-900 border border-gray-700 rounded-lg p-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: 0.05 }}>
               <h3 className="text-lg font-semibold text-white mb-4">RAM Usage</h3>
-              <p className="text-xs text-gray-500 mb-4">(Total: {1100} GB / 1.1 TB)</p>
+              <p className="text-xs text-gray-500 mb-4">(Total: 1100 GB)</p>
               <RamUsageBarChart
                 sdpaData={attentionMetrics.sdpa?.data || []}
                 flashData={attentionMetrics.flash?.data || []}
@@ -398,7 +403,6 @@ export default function BenchmarksPage() {
             </motion.div>
           </div>
 
-          {/* Insight Box */}
           <motion.div
             className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4"
             initial={{ opacity: 0, y: 8 }}
@@ -413,22 +417,14 @@ export default function BenchmarksPage() {
                 <h4 className="text-blue-300 font-semibold mb-1">Key Insight</h4>
                 <p className="text-gray-300 text-sm">
                   Both Flash Attention and SDPA Attention consume almost identical GPU Memory and RAM. 
-                  This tells us that performance differences come from <span className="text-blue-400 font-medium">algorithmic speed</span>, not memory usage. 
-                  Memory is not a bottleneck here.
+                  This tells us that performance differences come from <span className="text-blue-400 font-medium">algorithmic speed</span>, not memory usage.
                 </p>
               </div>
             </div>
           </motion.div>
 
-          {/* Perplexity Evolution and Runtime per Epoch Charts - Side by Side */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Perplexity Evolution Chart */}
-            <motion.div
-              className="bg-gray-900 border border-gray-700 rounded-lg p-6"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, delay: 0.1 }}
-            >
+            <motion.div className="bg-gray-900 border border-gray-700 rounded-lg p-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: 0.1 }}>
               <h3 className="text-lg font-semibold text-white mb-4">Perplexity Evolution</h3>
               <div className="h-64">
                 <PerplexityChart
@@ -438,21 +434,11 @@ export default function BenchmarksPage() {
               </div>
             </motion.div>
 
-            {/* Runtime per Epoch Chart */}
-            <motion.div
-              className="bg-gray-900 border border-gray-700 rounded-lg p-6"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, delay: 0.2 }}
-            >
+            <motion.div className="bg-gray-900 border border-gray-700 rounded-lg p-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: 0.2 }}>
               <h3 className="text-lg font-semibold text-white mb-2">Runtime per Epoch (seconds)</h3>
               <div className="text-sm text-gray-400 mb-4 space-y-1">
-                <p className="italic">
-                  Time taken to complete each training epoch. Lower runtime indicates faster training.
-                </p>
-                <p className="text-xs text-gray-500">
-                  <span className="text-yellow-400">Note:</span> Epoch 0 includes initial setup time. Subsequent epochs show runtime for that epoch only.
-                </p>
+                <p className="italic">Time taken to complete each training epoch.</p>
+                <p className="text-xs text-gray-500"><span className="text-yellow-400">Note:</span> Epoch 0 includes initial setup.</p>
               </div>
               <div className="h-64">
                 <RuntimePerEpochChart

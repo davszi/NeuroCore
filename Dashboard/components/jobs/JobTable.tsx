@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useCluster } from '@/context/ClusterContext';
 import { HiOutlineRefresh } from 'react-icons/hi';
-import { Job } from '@/types/cluster';
+// FIXED: Removed unused 'Job' import
 
 const JobStatusIndicator: React.FC<{ isCpu?: boolean }> = ({ isCpu }) => (
   <div className="flex items-center">
@@ -90,9 +90,7 @@ export default function JobTable() {
               </tr>
             ) : (
               filteredJobs.map((job) => {
-                // FIXED: Detect CPU job by checking if cpu_percent exists, NOT if gpu memory is 0.
                 const isCpu = job.cpu_percent !== undefined;
-                
                 return (
                   <tr
                     key={`${job.node}-${job.pid}-${job.process_name}`}
@@ -112,7 +110,7 @@ export default function JobTable() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-300">
                       {isCpu
-                        ? `${(job.cpu_percent || 0).toFixed(1)} %` // Fallback to 0 just in case
+                        ? `${(job.cpu_percent || 0).toFixed(1)} %`
                         : `${job.gpu_memory_usage_mib.toFixed(0)} MiB`}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-400 truncate max-w-sm">

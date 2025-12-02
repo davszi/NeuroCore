@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-import { NodeConfig, ClusterState, Job, GpuNode, LoginNode } from '@/types/cluster';
+import { NodeConfig, ClusterState, Job, GpuNode, LoginNode, GpuInventory } from '@/types/cluster';
 import { fetchNodeHardware, fetchJobsFromNode, fetchClusterStats } from './fetchers';
 
 // --- 1. Define Global Cache ---
@@ -34,7 +34,7 @@ export function startBackgroundServices() {
 
   // Load Config
   let nodesConfig: { nodes: NodeConfig[] };
-  let gpuInventory: any;
+  let gpuInventory: GpuInventory; // Fixed Type
 
   try {
     const nodesPath = path.join(process.cwd(), '../config/nodes.yaml');
@@ -42,7 +42,7 @@ export function startBackgroundServices() {
     
     if (fs.existsSync(nodesPath) && fs.existsSync(invPath)) {
       nodesConfig = yaml.load(fs.readFileSync(nodesPath, 'utf8')) as { nodes: NodeConfig[] };
-      gpuInventory = yaml.load(fs.readFileSync(invPath, 'utf8'));
+      gpuInventory = yaml.load(fs.readFileSync(invPath, 'utf8')) as GpuInventory;
     } else {
       console.error("❌ [Worker] Config files missing. Worker stopped.");
       return;
@@ -57,7 +57,6 @@ export function startBackgroundServices() {
   // --- LOOP A: Real-Time Data (Every 30s) ---
   const updateRealTime = async () => {
     try {
-      // 1. Fetch Hardware (Parallel)
       const nodePromises = nodesConfig.nodes.map(node => fetchNodeHardware(node, gpuInventory));
       const nodeResults = await Promise.all(nodePromises);
 
@@ -75,15 +74,12 @@ export function startBackgroundServices() {
         }
       });
 
-      // 2. Fetch Jobs (Parallel)
       const jobPromises = nodesConfig.nodes.map(node => fetchJobsFromNode(node));
       const jobResults = await Promise.all(jobPromises);
       const allJobs = jobResults.flat().sort((a, b) => b.gpu_memory_usage_mib - a.gpu_memory_usage_mib);
 
-      // 3. Fetch Cluster Stats (Head Node Only)
       const { partitions, volumes } = await fetchClusterStats(headNode);
 
-      // 4. Update RAM Cache
       const timestamp = new Date().toISOString();
       
       const nodeStatePayload: ClusterState = {
@@ -93,7 +89,7 @@ export function startBackgroundServices() {
         gpu_nodes: gpuNodes,
         storage: volumes,
         slurm_queue_info: partitions,
-        user_storage: [] // Empty by default (fetched on-demand via API)
+        user_storage: [] 
       };
 
       globalThis.CLUSTER_CACHE.nodeState = nodeStatePayload;
@@ -107,7 +103,6 @@ export function startBackgroundServices() {
     }
   };
 
-  // --- LOOP B: History Saver (Every 5 Minutes) ---
   const saveHistory = async () => {
     if (!globalThis.CLUSTER_CACHE.isReady || !globalThis.CLUSTER_CACHE.nodeState) return;
     
@@ -124,8 +119,7 @@ export function startBackgroundServices() {
     }
   };
 
-  // --- Start Loops ---
-  updateRealTime(); // Run immediately
-  setInterval(updateRealTime, 30000); // 30 Seconds Interval
-  setInterval(saveHistory, 5 * 60 * 1000); // 5 Minutes Interval
+  updateRealTime(); 
+  setInterval(updateRealTime, 30000); 
+  setInterval(saveHistory, 5 * 60 * 1000); 
 }
