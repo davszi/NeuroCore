@@ -30,10 +30,10 @@ export default function ResourcesPage() {
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
           <h1 className="text-3xl font-bold text-white">Resources</h1>
           <div className="flex items-center gap-2">
-             {isLoading && <span className="text-yellow-400 text-xs animate-pulse">Syncing...</span>}
-             <span className="text-sm text-gray-400">
-               Last updated: <span className="text-cyan-300 font-mono">{lastUpdatedLabel}</span>
-             </span>
+            {isLoading && <span className="text-yellow-400 text-xs animate-pulse">Syncing...</span>}
+            <span className="text-sm text-gray-400">
+              Last updated: <span className="text-cyan-300 font-mono">{lastUpdatedLabel}</span>
+            </span>
           </div>
         </div>
 
@@ -44,7 +44,7 @@ export default function ResourcesPage() {
 
         <section>
           <h3 className="text-lg font-semibold text-white mb-3">Compute Nodes</h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             {(nodesState?.login_nodes || []).map((node) => (
               <LoginNodeCard key={node.node_name} node={node} />
@@ -56,7 +56,7 @@ export default function ResourcesPage() {
               <NodeCard key={node.node_name} node={node} />
             ))}
           </div>
-          
+
           {nodesState?.gpu_nodes?.length === 0 && !isLoading && (
             <div className="text-center p-8 bg-gray-900 rounded-lg border border-gray-800 text-gray-400">
               No GPU nodes found or system is initializing.
@@ -70,7 +70,7 @@ export default function ResourcesPage() {
           <h3 className="text-lg font-semibold text-white mb-3">Filesystem Volumes</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             {(clusterState?.storage || []).map((volume) => (
-              <div 
+              <div
                 key={volume.mount_point}
                 onClick={() => setSelectedVolume(volume.mount_point)}
                 className={`cursor-pointer transition-transform transform hover:scale-[1.01] ${selectedVolume === volume.mount_point ? 'ring-2 ring-cyan-500 rounded-lg' : ''}`}

@@ -1,13 +1,14 @@
-import React from 'react';
-import { useCluster } from '@/context/ClusterContext';
-import { HiOutlineRefresh } from 'react-icons/hi';
+import React from "react";
+import { useCluster } from "@/context/ClusterContext";
+import { HiOutlineRefresh } from "react-icons/hi";
 
 export default function SlurmQueueTable() {
   const { clusterState, isStateLoading, stateError } = useCluster();
 
-  const renderCell = (value: number | string | null | undefined) => {
-    return value === null || value === undefined ? '-' : value;
-  };
+  const renderCell = (value: number | null | undefined) => (value ?? "-");
+
+  // Ensure we always have an array to map over
+  const slurmQueue = clusterState?.slurm_queue_info ?? [];
 
   if (isStateLoading && !stateError) {
     return (
@@ -22,8 +23,7 @@ export default function SlurmQueueTable() {
     <div className="bg-gray-900 shadow-md rounded-lg overflow-hidden border border-gray-700">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-700">
-          
-          {/* --- Table Header --- */}
+          {/* Table Header */}
           <thead className="bg-gray-800">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Partition</th>
@@ -36,19 +36,41 @@ export default function SlurmQueueTable() {
             </tr>
           </thead>
 
-          {/* --- Table Body --- */}
+          {/* Table Body */}
           <tbody className="bg-gray-900 divide-y divide-gray-800">
-            {clusterState.slurm_queue_info.map((partition) => (
-              <tr key={partition.partition} className="hover:bg-gray-800">
-                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-cyan-300">{partition.partition}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">{renderCell(partition.cpu_free)}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">{renderCell(partition.cpu_allocated)}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">{renderCell(partition.mem_free_gb)}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">{renderCell(partition.mem_allocated_gb)}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-green-400">{renderCell(partition.gpu_free)}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-yellow-400">{renderCell(partition.gpu_allocated)}</td>
+            {slurmQueue.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-4 text-gray-400">
+                  No SLURM queue data available.
+                </td>
               </tr>
-            ))}
+            ) : (
+              slurmQueue.map((partition) => (
+                <tr key={partition.partition} className="hover:bg-gray-800">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-cyan-300">
+                    {partition.partition}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">
+                    {renderCell(partition.cpu_free)}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">
+                    {renderCell(partition.cpu_allocated)}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">
+                    {renderCell(partition.mem_free_gb)}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">
+                    {renderCell(partition.mem_allocated_gb)}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-green-400">
+                    {renderCell(partition.gpu_free)}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-yellow-400">
+                    {renderCell(partition.gpu_allocated)}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

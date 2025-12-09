@@ -12,7 +12,7 @@ export default function LoginNodeCard({ node }: LoginNodeCardProps) {
 
   return (
     <div className="bg-gray-900 shadow-lg rounded-lg p-4 border border-gray-700">
-      
+
       {/* --- Header --- */}
       <div className="mb-3">
         <h3 className="text-lg font-bold text-white">{node.node_name}</h3>
