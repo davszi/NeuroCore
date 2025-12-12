@@ -135,3 +135,20 @@ export interface GpuInventory {
   defaults: GpuInventoryNode;
   nodes: { [nodeName: string]: GpuInventoryNode };
 }
+
+export interface TrainingOptions {
+  tasks: string[];
+  models: string[];
+  datasets: string[];
+  attention: string[];
+}
+
+export interface TrainingJobConfig {
+  task: string;
+  model: string;
+  dataset: string;
+  attention: string;
+  steps: number;
+  batch_size: number;
+  learning_rate: number;
+}

@@ -1,20 +1,10 @@
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { useRouter } from "next/router";
+import { motion } from "framer-motion";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  Legend
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from "recharts";
-import {
-  ClusterState,
-  AttentionMetricsResponse,
-} from "@/types/cluster";
+import { ClusterState, AttentionMetricsResponse, MetricEntry, TrainingJobConfig } from "@/types/cluster";
 
 import GpuMemoryBarChart from "../components/benchmarks/GpuMemoryBarChart";
 import RamUsageBarChart from "../components/benchmarks/RamUsageBarChart";
@@ -22,457 +12,496 @@ import PerplexityChart from "../components/benchmarks/PerplexityChart";
 import RuntimePerEpochChart from "../components/benchmarks/RuntimePerEpochChart";
 import MLBenchmarkChart from "../components/benchmarks/MLBenchmarkChart";
 import RunConfigurationsTable from "../components/benchmarks/RunConfigurationsTable";
+import NewRunModal from "@/components/benchmarks/NewRunModal";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-// ---------------- Types -----------------
+// --- Types ---
 interface BenchmarkDataPoint {
   timestamp: number;
   label: string;
+  utilization: number;
+  temp?: number;
+  mem?: number;
+  fan?: number;
+  efficiency?: number;
   [key: string]: number | string | undefined;
 }
 
-interface NodeData {
-  id: string;
-  name: string;
-  data: BenchmarkDataPoint[];
+interface AggregatedPoint extends BenchmarkDataPoint {
+  count: number;
 }
 
-// ---------------- Helpers -----------------
-function formattedDate(ts: number, range: string) {
-  const date = new Date(ts);
-  if (range === "today") return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (range === "7d") return date.toLocaleDateString([], { weekday: 'short' });
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+// --- Helpers ---
+function smoothLine(data: BenchmarkDataPoint[], window = 3): BenchmarkDataPoint[] {
+  if (!data.length) return data;
+  return data.map((point, i) => {
+    const start = Math.max(0, i - window + 1);
+    const slice = data.slice(start, i + 1);
+    const avg = (getter: (p: BenchmarkDataPoint) => number | undefined) => {
+      const values = slice.map(getter).filter((v): v is number => v !== undefined);
+      if (values.length === 0) return 0;
+      return values.reduce((a, b) => a + b, 0) / values.length;
+    };
+    return {
+      ...point,
+      utilization: avg(p => p.utilization),
+      temp: point.temp !== undefined ? avg(p => p.temp) : undefined,
+      mem: point.mem !== undefined ? avg(p => p.mem) : undefined,
+      fan: point.fan !== undefined ? avg(p => p.fan) : undefined,
+      efficiency: point.efficiency !== undefined ? avg(p => p.efficiency) : undefined,
+    };
+  });
 }
 
-function inRange(ts: number, range: "today" | "7d" | "month" | "1y") {
-  const date = new Date(ts);
-  const now = new Date();
-
-  if (isNaN(date.getTime())) return false;
-
-  switch (range) {
-    case "today":
-      return date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    case "7d": {
-      const diff = now.getTime() - ts;
-      return diff <= 7 * 24 * 60 * 60 * 1000;
-    }
-    case "month":
-      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    case "1y":
-      return date.getFullYear() === now.getFullYear();
-    default:
-      return true;
-  }
+function getRangeLabel(date: Date, range: string) {
+  if (range === "today") return date.getHours() + ":00";
+  if (range === "7d") return date.toLocaleDateString(undefined, { weekday: "short" });
+  if (range === "month") return date.getDate() + "/" + (date.getMonth() + 1);
+  if (range === "1y") return date.toLocaleDateString(undefined, { month: "short" });
+  return "";
 }
 
-// ---------------- Main Component -----------------
+// --------------------- Main Page ---------------------
 export default function BenchmarksPage() {
-  const router = useRouter();
-  const { data: snapshots = [] } = useSWR<ClusterState[]>("/api/node-history", fetcher, { refreshInterval: 60000 });
+  const { data: snapshots = [], isLoading } = useSWR<ClusterState[]>("/api/node-history", fetcher, {
+    refreshInterval: 60000, 
+  });
+
   const { data: attentionMetrics } = useSWR<AttentionMetricsResponse>("/api/attention-metrics", fetcher);
 
-  const activeTab = (router.query.tab as string) || "performance";
-  const [perfSubTab, setPerfSubTab] = useState<"parameter" | "node">("parameter");
-
+  // --- UI State ---
+  const [activeTab, setActiveTab] = useState<"cluster" | "ml">("cluster");
   const [range, setRange] = useState<"today" | "7d" | "month" | "1y">("today");
-  const ranges = ["today", "7d", "month", "1y"] as const;
+  const [smoothEnabled, setSmoothEnabled] = useState(true);
+  
+  // --- Training Modal State ---
+  const [isModalOpen, setModalOpen] = useState(false);
+  const [isStarting, setStarting] = useState(false);
 
-  const processedData = useMemo(() => {
-    if (!snapshots || snapshots.length === 0) return { parameterWise: [], nodeWise: [], keys: [] };
+  const handleStartTraining = async (config: TrainingJobConfig, nodeName: string) => {
+    setStarting(true);
+    try {
+      const res = await fetch('/api/start-training', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config, nodeName })
+      });
+      if (!res.ok) throw new Error("Failed to start");
+      alert("Training started successfully! Check the dashboard for progress.");
+      setModalOpen(false);
+    } catch (e) {
+      alert("Error starting training: " + e);
+    } finally {
+      setStarting(false);
+    }
+  };
 
-    const nodeMap: Record<string, NodeData> = {};
-    const timestampMap: Record<number, BenchmarkDataPoint> = {};
+  const ranges: ("today" | "7d" | "month" | "1y")[] = ["today", "7d", "month", "1y"];
+
+  // --- Data Processing (Cluster History) ---
+  const perGpuSeries = useMemo(() => {
+    if (!snapshots || !snapshots.length) return [];
+    const now = new Date();
+    const map: Record<string, BenchmarkDataPoint[]> = {};
 
     snapshots.forEach((snap) => {
       const ts = new Date(snap.last_updated_timestamp).getTime();
-      if (!inRange(ts, range)) return;
+      const snapDate = new Date(ts);
+      let include = false;
+      const diffTime = now.getTime() - ts;
+      const oneDay = 24 * 60 * 60 * 1000;
 
-      if (!timestampMap[ts]) {
-        timestampMap[ts] = { timestamp: ts, label: formattedDate(ts, range) };
-      }
+      if (range === "today") include = diffTime < oneDay;
+      if (range === "7d") include = diffTime < 7 * oneDay;
+      if (range === "month") include = diffTime < 30 * oneDay;
+      if (range === "1y") include = diffTime < 365 * oneDay;
+      
+      if (!include) return;
 
       snap.gpu_nodes.forEach((node) => {
         node.gpus.forEach((gpu) => {
-          const id = `${node.node_name}-${gpu.gpu_id}`;
-          if (!nodeMap[id]) {
-            nodeMap[id] = {
-              id,
-              name: `${node.node_name} (GPU ${gpu.gpu_id})`,
-              data: [],
-            };
-          }
+          const key = `${node.node_name} - ${gpu.gpu_name} (ID: ${gpu.gpu_id})`;
+          if (!map[key]) map[key] = [];
+          
+          const efficiency = (gpu.utilization_percent > 0 && (gpu.power_draw_watts || 0) > 0)
+            ? gpu.utilization_percent / (gpu.power_draw_watts || 1)
+            : 0;
 
-          const util = gpu.utilization_percent || 0;
-          const vram = (gpu.memory_used_mib || 0) / 1024;
-          const temp = gpu.temperature_celsius || 0;
-
-          const dataPoint = {
+          map[key].push({
             timestamp: ts,
-            label: formattedDate(ts, range),
-            utilization: util,
-            vram: vram,
-            temp: temp,
-          };
-
-          nodeMap[id].data.push(dataPoint);
-
-          timestampMap[ts][`${id}_util`] = util;
-          timestampMap[ts][`${id}_vram`] = vram;
-          timestampMap[ts][`${id}_temp`] = temp;
+            utilization: gpu.utilization_percent,
+            temp: gpu.temperature_celsius,
+            mem: gpu.memory_used_mib ? gpu.memory_used_mib / 1024 : 0, 
+            fan: gpu.fan_speed_percent,
+            efficiency,
+            label: getRangeLabel(snapDate, range),
+          });
         });
       });
     });
 
-    Object.values(nodeMap).forEach(node => {
-      node.data.sort((a, b) => a.timestamp - b.timestamp);
+    return Object.entries(map).map(([name, data]) => {
+      const tempMap: Record<string, AggregatedPoint> = {};
+      data.forEach((p) => {
+        if (!tempMap[p.label]) {
+          tempMap[p.label] = { ...p, count: 1 };
+        } else {
+          const target = tempMap[p.label];
+          target.utilization += p.utilization;
+          if(p.temp !== undefined && target.temp !== undefined) target.temp += p.temp;
+          if(p.mem !== undefined && target.mem !== undefined) target.mem += p.mem;
+          if(p.efficiency !== undefined && target.efficiency !== undefined) target.efficiency += p.efficiency;
+          target.count += 1;
+        }
+      });
+
+      let aggregated: BenchmarkDataPoint[] = Object.values(tempMap).map((val: AggregatedPoint) => ({
+        timestamp: val.timestamp,
+        label: val.label,
+        utilization: val.utilization / val.count,
+        temp: val.temp !== undefined ? val.temp / val.count : undefined,
+        mem: val.mem !== undefined ? val.mem / val.count : undefined,
+        fan: val.fan !== undefined ? val.fan / val.count : undefined,
+        efficiency: val.efficiency !== undefined ? val.efficiency / val.count : undefined,
+      }));
+
+      aggregated.sort((a, b) => a.timestamp - b.timestamp);
+      if (smoothEnabled) aggregated = smoothLine(aggregated);
+      return { name, data: aggregated };
     });
+  }, [snapshots, range, smoothEnabled]);
 
-    const sortedTimestamps = Object.keys(timestampMap).map(Number).sort((a, b) => a - b);
-    const paramData = sortedTimestamps.map(ts => timestampMap[ts]);
+  const totalPower = useMemo(() => {
+    if (!snapshots.length) return 0;
+    const sum = snapshots.reduce((acc, s) => acc + (s.total_power_consumption_watts || 0), 0);
+    return Math.round(sum / snapshots.length);
+  }, [snapshots]);
 
-    return {
-      parameterWise: paramData,
-      nodeWise: Object.values(nodeMap),
-      keys: Object.keys(nodeMap),
-    };
-  }, [snapshots, range]);
+  const avgGpuUtil = useMemo(() => {
+    let totalUtil = 0;
+    let count = 0;
+    snapshots.forEach((snap) => snap.gpu_nodes.forEach((node) => node.gpus.forEach((g) => {
+        totalUtil += g.utilization_percent || 0;
+        count++;
+    })));
+    return count ? Math.round((totalUtil / count) * 10) / 10 : 0;
+  }, [snapshots]);
 
-  const hasData = processedData.parameterWise.length > 0;
+  const peakMemory = useMemo(() => {
+    let maxGB = 0;
+    snapshots.forEach((snap) =>
+      snap.gpu_nodes.forEach((node) =>
+        node.gpus.forEach((g) => {
+          const gb = (g.memory_used_mib || 0) / 1024;
+          if (gb > maxGB) maxGB = gb;
+        })
+      )
+    );
+    return Math.round(maxGB * 10) / 10;
+  }, [snapshots]);
+
+  function healthBadge(util: number) {
+    if (util >= 90) return { text: "Heavy Load", color: "text-red-400", bg: "bg-red-900/30" };
+    if (util >= 50) return { text: "Moderate", color: "text-yellow-300", bg: "bg-yellow-900/20" };
+    return { text: "Idle / Healthy", color: "text-green-400", bg: "bg-green-900/20" };
+  }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 p-4 md:p-6 font-sans">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 border-b border-gray-800 pb-4">
+    <div className="p-6 space-y-6 min-h-screen">
+      
+      {/* --- Top Header & Tabs --- */}
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-gray-800">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">
-            {activeTab === "ml" ? "ML Benchmarks" : "System Metrics"}
-          </h1>
-          <p className="text-gray-400 text-sm max-w-2xl">
-            {activeTab === "ml"
-              ? "Deep learning training efficiency and loss analysis."
-              : "Overview of GPU utilization, memory consumption, and thermal status across the cluster."}
+          <h1 className="text-3xl font-bold text-white tracking-tight">System Benchmarks</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            Real-time hardware performance vs. ML Model training metrics.
           </p>
         </div>
 
-        {activeTab === "performance" && (
-          <div className="flex bg-gray-900 rounded-md p-1 border border-gray-800">
-            {ranges.map((r) => (
-              <button
-                key={r}
-                onClick={() => setRange(r)}
-                className={`px-3 py-1.5 rounded text-xs font-semibold transition-all ${range === r
-                  ? "bg-cyan-600 text-white shadow"
-                  : "text-gray-400 hover:text-white hover:bg-gray-800"
-                  }`}
-              >
-                {r === "today" ? "24H" : r === "7d" ? "7D" : r === "month" ? "1M" : "1Y"}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex bg-gray-900 p-1.5 rounded-lg border border-gray-700">
+          <button
+            onClick={() => setActiveTab("cluster")}
+            className={`px-6 py-2 rounded-md text-sm font-semibold transition-all ${
+              activeTab === "cluster"
+                ? "bg-gray-800 text-white shadow-sm border border-gray-600"
+                : "text-gray-400 hover:text-white"
+            }`}
+          >
+            Cluster Health
+          </button>
+          <button
+            onClick={() => setActiveTab("ml")}
+            className={`px-6 py-2 rounded-md text-sm font-semibold transition-all ${
+              activeTab === "ml"
+                ? "bg-cyan-900/40 text-cyan-100 border border-cyan-700/50 shadow-sm"
+                : "text-gray-400 hover:text-white"
+            }`}
+          >
+            ML Benchmarks
+          </button>
+        </div>
       </header>
 
-      <main>
-        {activeTab === "performance" ? (
-          <div className="space-y-6">
-            <div className="flex space-x-6 border-b border-gray-800">
-              <button
-                onClick={() => setPerfSubTab("parameter")}
-                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${perfSubTab === "parameter"
-                  ? "border-cyan-500 text-cyan-400"
-                  : "border-transparent text-gray-400 hover:text-gray-200"
-                  }`}
-              >
-                PARAMETER VIEW
-              </button>
-              <button
-                onClick={() => setPerfSubTab("node")}
-                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${perfSubTab === "node"
-                  ? "border-node text-cyan-400" // typo fix
-                  : "border-transparent text-gray-400 hover:text-gray-200"
-                  }`}
-              >
-                NODE VIEW
-              </button>
-            </div>
-
-            {!hasData ? (
-              <div className="flex flex-col items-center justify-center h-64 border border-dashed border-gray-800 rounded-xl bg-gray-900/30 text-gray-500">
-                <p>No telemetry data found for this period.</p>
-              </div>
-            ) : (
-              <>
-                {perfSubTab === "parameter" ? (
-                  <ParameterWiseView data={processedData.parameterWise} nodeKeys={processedData.keys} range={range} />
-                ) : (
-                  <NodeWiseView nodes={processedData.nodeWise} range={range} />
-                )}
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {attentionMetrics ? (
-              <MLBenchmarksView attentionMetrics={attentionMetrics} />
-            ) : (
-              <div className="flex justify-center p-12 text-gray-500">Loading ML metrics...</div>
-            )}
-          </div>
-        )}
-      </main>
-    </div>
-  );
-}
-
-// ---------------- Sub Components -----------------
-
-function ParameterWiseView({ data, nodeKeys, range }: { data: BenchmarkDataPoint[]; nodeKeys: string[]; range: string }) {
-  const chartConfig = [
-    { title: "GPU Utilization", keySuffix: "_util", unit: "%", yDomain: [0, 100] as [number, number] },
-    { title: "VRAM Usage", keySuffix: "_vram", unit: " GB", yDomain: ["auto", "auto"] as const },
-    { title: "GPU Temperature", keySuffix: "_temp", unit: "°C", yDomain: ["auto", "auto"] as const },
-  ];
-
-  // Strong, distinct colors as requested (Blue, Red, Yellow, etc.)
-  const nodeColors = [
-    "#3b82f6", // Blue-500
-    "#ef4444", // Red-500
-    "#eab308", // Yellow-500
-    "#10b981", // Emerald-500
-    "#8b5cf6", // Violet-500
-    "#f97316", // Orange-500
-    "#06b6d4", // Cyan-500
-  ];
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-      {chartConfig.map((config) => (
-        <div key={config.title} className="bg-gray-900 border border-gray-800 rounded-lg p-4 shadow-sm hover:border-gray-700 transition-colors">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-sm font-semibold text-gray-200">
-              {config.title}
-            </h3>
-            <span className="text-xs bg-gray-800 px-2 py-0.5 rounded text-gray-400 border border-gray-700">{config.unit.trim()}</span>
-          </div>
-
-          <div className="h-60 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
-                <defs>
-                  {nodeKeys.map((nodeKey, idx) => (
-                    <linearGradient key={nodeKey} id={`gradient-${config.keySuffix}-${idx}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={nodeColors[idx % nodeColors.length]} stopOpacity={0.3} />
-                      <stop offset="95%" stopColor={nodeColors[idx % nodeColors.length]} stopOpacity={0} />
-                    </linearGradient>
-                  ))}
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.3} />
-                <XAxis
-                  dataKey="timestamp"
-                  tickFormatter={(ts) => formattedDate(ts, range)}
-                  stroke="#525252"
-                  tick={{ fontSize: 10, fill: "#9ca3af" }}
-                  tickLine={false}
-                  axisLine={false}
-                  minTickGap={30}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  stroke="#525252"
-                  tick={{ fontSize: 10, fill: "#9ca3af" }}
-                  tickLine={false}
-                  axisLine={false}
-                  domain={config.yDomain}
-                  width={35}
-                />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#0f172a", borderColor: "#1e293b", borderRadius: "6px", fontSize: "12px", color: "#f1f5f9" }}
-                  labelFormatter={(ts) => new Date(ts).toLocaleString()}
-                  formatter={(value: number) => [value.toFixed(1) + config.unit, ""]}
-                  itemStyle={{ padding: 0 }}
-                  cursor={{ stroke: '#4b5563', strokeWidth: 1 }}
-                />
-                <Legend
-                  wrapperStyle={{ paddingTop: "12px", fontSize: "11px", fontFamily: "sans-serif" }}
-                  iconType="circle"
-                />
-                {nodeKeys.map((nodeKey, idx) => (
-                  <Area
-                    key={nodeKey}
-                    type="monotone"
-                    dataKey={`${nodeKey}${config.keySuffix}`}
-                    name={nodeKey.replace("-", " ")}
-                    stroke={nodeColors[idx % nodeColors.length]}
-                    fill={`url(#gradient-${config.keySuffix}-${idx})`}
-                    strokeWidth={2}
-                    activeDot={{ r: 4, strokeWidth: 0 }}
-                    fillOpacity={1}
-                    connectNulls={true} // bridging gaps
-                  />
+      {/* ================= CLUSTER HEALTH TAB ================= */}
+      {activeTab === "cluster" && (
+        <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          
+          {/* Controls */}
+          <div className="flex justify-end mb-4">
+            <div className="flex items-center gap-3 bg-gray-900 p-2 rounded-lg border border-gray-700">
+              <div className="inline-flex rounded-md bg-gray-800 p-1">
+                {ranges.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRange(r)}
+                    className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${
+                      range === r ? "bg-cyan-600 text-white shadow" : "text-gray-400 hover:text-white hover:bg-gray-700"
+                    }`}
+                  >
+                    {r === "today" ? "Today" : r === "7d" ? "7 Days" : r === "month" ? "Month" : "Year"}
+                  </button>
                 ))}
-              </AreaChart>
-            </ResponsiveContainer>
+              </div>
+              <div className="h-6 w-px bg-gray-700 mx-1"></div>
+              <label className="flex items-center gap-2 text-gray-300 text-sm cursor-pointer select-none">
+                <input 
+                  type="checkbox" 
+                  checked={smoothEnabled} 
+                  onChange={() => setSmoothEnabled(!smoothEnabled)} 
+                  className="rounded border-gray-600 bg-gray-700 text-cyan-500 focus:ring-offset-gray-900"
+                />
+                Smooth
+              </label>
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
-function NodeWiseView({ nodes, range }: { nodes: NodeData[]; range: string }) {
-  if (nodes.length === 0) return null;
+          {/* KPI Cards */}
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <SummaryCard title="Avg Power Draw (W)" value={totalPower} color="cyan" />
+            <SummaryCard title="Avg GPU Utilization (%)" value={avgGpuUtil} color="green" />
+            <SummaryCard title="Peak Memory Usage (GB)" value={peakMemory} color="yellow" />
+          </section>
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {nodes.map((node) => (
-        <div key={node.id} className="bg-gray-900 border border-gray-800 rounded-lg p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between border-b border-gray-800 pb-2">
-            <div>
-              <h3 className="text-sm font-bold text-white tracking-wide">{node.name}</h3>
-              <div className="flex gap-3 mt-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
-                  <span className="text-[10px] text-gray-400 uppercase">Util</span>
+          {/* History Charts */}
+          <section className="space-y-6">
+            {isLoading && snapshots.length === 0 && (
+                <div className="flex justify-center py-20">
+                    <span className="text-cyan-500 animate-pulse">Loading history data...</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
-                  <span className="text-[10px] text-gray-400 uppercase">VRAM</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                  <span className="text-[10px] text-gray-400 uppercase">Temp</span>
-                </div>
+            )}
+
+            {!isLoading && perGpuSeries.length === 0 ? (
+              <div className="bg-gray-900 border border-gray-700 rounded-lg p-10 text-center text-gray-400">
+                <p>No history data found for this time range.</p>
+                <p className="text-xs mt-2 text-gray-500">Wait for the background worker to save the first snapshot (approx 5 mins).</p>
+              </div>
+            ) : (
+              perGpuSeries.map(({ name, data }) => {
+                const latest = data[data.length - 1] || { utilization: 0, efficiency: 0 };
+                const hb = healthBadge(latest.utilization);
+                return (
+                  <motion.div
+                    key={name}
+                    className="bg-gray-900 border border-gray-700 rounded-lg p-4 shadow-sm"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-white font-semibold text-lg">{name}</h3>
+                        <span className={`${hb.bg} ${hb.color} px-2 py-0.5 rounded text-xs font-medium border border-white/5`}>
+                            {hb.text}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs uppercase tracking-wide text-gray-500">Latest Util</div>
+                        <div className="text-xl font-bold text-white font-mono">
+                          {latest.utilization.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="h-64 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={data}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                          <XAxis 
+                            dataKey="label" 
+                            stroke="#9CA3AF" 
+                            tick={{fontSize: 12}} 
+                            tickLine={false}
+                            axisLine={false}
+                            dy={10}
+                          />
+                          <YAxis 
+                            stroke="#9CA3AF" 
+                            tick={{fontSize: 12}} 
+                            tickLine={false}
+                            axisLine={false}
+                            dx={-10}
+                            domain={[0, 100]}
+                          />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px', color: '#F3F4F6' }}
+                            itemStyle={{ padding: 0 }}
+                            labelStyle={{ color: '#9CA3AF', marginBottom: '0.5rem' }}
+                            formatter={(val: number, key: string) => {
+                              if(key === "utilization") return [val.toFixed(1) + "%", "GPU Util"];
+                              if(key === "temp") return [val.toFixed(1) + "°C", "Temp"];
+                              if(key === "mem") return [val.toFixed(1) + " GB", "VRAM"];
+                              return [val, key];
+                            }}
+                          />
+                          <Line type="monotone" dataKey="utilization" stroke="#06b6d4" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
+                          <Line type="monotone" dataKey="temp" stroke="#f87171" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                          <Line type="monotone" dataKey="mem" stroke="#a3e635" strokeWidth={2} dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                    
+                    <div className="flex justify-center gap-6 mt-2">
+                        <LegendItem color="bg-cyan-500" label="GPU Util" />
+                        <LegendItem color="bg-red-400" label="Temp (°C)" />
+                        <LegendItem color="bg-lime-400" label="VRAM (GB)" />
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
+          </section>
+        </motion.div>
+      )}
+
+      {/* ================= ML BENCHMARKS TAB ================= */}
+      {activeTab === "ml" && attentionMetrics && (
+        <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-white">Attention Mechanism Comparison</h2>
+            <button 
+              onClick={() => setModalOpen(true)}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors shadow-lg shadow-cyan-900/20 flex items-center gap-2"
+            >
+              <span className="text-xl leading-none mb-0.5">+</span> New Run
+            </button>
+          </div>
+
+          <section className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-1">
+                <RunConfigurationsTable />
+              </div>
+
+              <div className="lg:col-span-2">
+                <motion.div
+                  className="bg-gray-900 border border-gray-700 rounded-lg p-6 h-full"
+                >
+                  <h3 className="text-lg font-semibold text-white mb-4">
+                    Training Loss Comparison
+                  </h3>
+                  <div className="h-80">
+                    <MLBenchmarkChart
+                      baselineData={(attentionMetrics.sdpa?.data || []).map((d: MetricEntry) => ({ step: d.step, loss: d.loss || 0 }))}
+                      flashData={(attentionMetrics.flash?.data || []).map((d: MetricEntry) => ({ step: d.step, loss: d.loss || 0 }))}
+                    />
+                  </div>
+                </motion.div>
               </div>
             </div>
-          </div>
 
-          <div className="h-60 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={node.data}>
-                <defs>
-                  <linearGradient id="colorUtil" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorVram" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#eab308" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#eab308" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.2} />
-                <XAxis
-                  dataKey="timestamp"
-                  tickFormatter={(ts) => formattedDate(ts, range)}
-                  stroke="#525252"
-                  tick={{ fontSize: 10, fill: "#737373" }}
-                  tickLine={false}
-                  axisLine={false}
-                  minTickGap={40}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <motion.div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">GPU Memory Usage</h3>
+                <p className="text-xs text-gray-500 mb-4">(Total: 94 GB per GPU)</p>
+                <GpuMemoryBarChart
+                  sdpaData={attentionMetrics.sdpa?.data || []}
+                  flashData={attentionMetrics.flash?.data || []}
                 />
-                <YAxis yAxisId="left" stroke="#06b6d4" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} domain={[0, 100]} width={30} />
-                <YAxis yAxisId="right" orientation="right" stroke="#eab308" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={30} />
+              </motion.div>
 
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#0f172a", borderColor: "#1e293b", borderRadius: "6px", fontSize: "12px", color: "#f1f5f9" }}
-                  labelFormatter={(ts) => new Date(ts).toLocaleString()}
+              <motion.div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">RAM Usage</h3>
+                <p className="text-xs text-gray-500 mb-4">(Total: 1100 GB)</p>
+                <RamUsageBarChart
+                  sdpaData={attentionMetrics.sdpa?.data || []}
+                  flashData={attentionMetrics.flash?.data || []}
                 />
+              </motion.div>
+            </div>
 
-                <Area yAxisId="left" type="monotone" dataKey="utilization" name="GPU Util (%)" stroke="#06b6d4" fill="url(#colorUtil)" strokeWidth={2} />
-                <Area yAxisId="right" type="monotone" dataKey="vram" name="VRAM (GB)" stroke="#eab308" fill="url(#colorVram)" strokeWidth={2} />
-                <Area yAxisId="left" type="monotone" dataKey="temp" name="Temp (°C)" stroke="#f43f5e" fill="url(#colorTemp)" strokeWidth={1.5} strokeDasharray="3 3" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      ))}
+            <motion.div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <h4 className="text-blue-300 font-semibold mb-1">Key Insight</h4>
+                  <p className="text-gray-300 text-sm">
+                    Both Flash Attention and SDPA Attention consume almost identical GPU Memory and RAM. 
+                    This tells us that performance differences come from <span className="text-blue-400 font-medium">algorithmic speed</span>, not memory usage.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <motion.div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Perplexity Evolution</h3>
+                <div className="h-64">
+                  <PerplexityChart
+                    sdpaData={attentionMetrics.sdpa?.data || []}
+                    flashData={attentionMetrics.flash?.data || []}
+                  />
+                </div>
+              </motion.div>
+
+              <motion.div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-white mb-2">Runtime per Epoch (seconds)</h3>
+                <div className="text-sm text-gray-400 mb-4 space-y-1">
+                  <p className="italic">Time taken to complete each training epoch.</p>
+                  <p className="text-xs text-gray-500"><span className="text-yellow-400">Note:</span> Epoch 0 includes initial setup.</p>
+                </div>
+                <div className="h-64">
+                  <RuntimePerEpochChart
+                    sdpaRuntime={attentionMetrics.sdpa?.runtimePerEpoch || []}
+                    flashRuntime={attentionMetrics.flash?.runtimePerEpoch || []}
+                  />
+                </div>
+              </motion.div>
+            </div>
+          </section>
+        </motion.div>
+      )}
+
+      {/* --- Global Modal --- */}
+      <NewRunModal 
+        isOpen={isModalOpen} 
+        onClose={() => setModalOpen(false)} 
+        onStart={handleStartTraining}
+        isLoading={isStarting}
+      />
     </div>
   );
 }
 
-function MLBenchmarksView({ attentionMetrics }: { attentionMetrics: AttentionMetricsResponse }) {
+function SummaryCard({ title, value, color }: { title: string; value: number | string; color: "cyan" | "green" | "yellow" }) {
+  const colorStyles: Record<string, string> = {
+    cyan: "text-cyan-400 border-cyan-900/30 bg-cyan-900/10",
+    green: "text-green-400 border-green-900/30 bg-green-900/10",
+    yellow: "text-yellow-400 border-yellow-900/30 bg-yellow-900/10",
+  };
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <RunConfigurationsTable />
-        </div>
-        <div className="lg:col-span-2">
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 h-full shadow-sm">
-            <h3 className="text-sm font-semibold text-white mb-4">
-              Training Loss (SDPA vs. Flash)
-            </h3>
-            <div className="h-64">
-              <MLBenchmarkChart
-                baselineData={(attentionMetrics.sdpa?.data || []).map((d: { step: number; loss: number }) => ({ step: d.step, loss: d.loss }))}
-                flashData={(attentionMetrics.flash?.data || []).map((d: { step: number; loss: number }) => ({ step: d.step, loss: d.loss }))}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-white mb-4">GPU Memory Usage</h3>
-          <div className="h-64">
-            <GpuMemoryBarChart
-              sdpaData={attentionMetrics.sdpa?.data || []}
-              flashData={attentionMetrics.flash?.data || []}
-            />
-          </div>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-white mb-4">RAM Usage</h3>
-          <div className="h-64">
-            <RamUsageBarChart
-              sdpaData={attentionMetrics.sdpa?.data || []}
-              flashData={attentionMetrics.flash?.data || []}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-blue-900/10 border border-blue-500/20 rounded-lg p-4 flex items-center gap-4">
-        <div className="p-2 bg-blue-500/10 rounded-full">
-          <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <div>
-          <p className="text-gray-300 text-sm">
-            <strong className="text-blue-300">Observation: </strong>
-            Both Flash Attention and SDPA consume comparable memory. Speed gains are algorithmic.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-white mb-4">Perplexity Evolution</h3>
-          <div className="h-64">
-            <PerplexityChart
-              sdpaData={attentionMetrics.sdpa?.data || []}
-              flashData={attentionMetrics.flash?.data || []}
-            />
-          </div>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-white mb-2">Runtime per Epoch</h3>
-          <p className="text-xs text-gray-500 mb-4">Lower is better</p>
-          <div className="h-64">
-            <RuntimePerEpochChart
-              sdpaRuntime={attentionMetrics.sdpa?.runtimePerEpoch || []}
-              flashRuntime={attentionMetrics.flash?.runtimePerEpoch || []}
-            />
-          </div>
-        </div>
-      </div>
+    <div className={`border rounded-lg p-4 ${colorStyles[color]}`}>
+      <div className="text-xs uppercase tracking-wider opacity-80">{title}</div>
+      <div className="text-3xl font-bold mt-1 font-mono">{value}</div>
     </div>
   );
+}
+
+function LegendItem({ color, label }: { color: string, label: string }) {
+    return (
+        <div className="flex items-center gap-2 text-xs text-gray-400">
+            <span className={`w-3 h-1 rounded-full ${color}`}></span>
+            {label}
+        </div>
+    )
 }
