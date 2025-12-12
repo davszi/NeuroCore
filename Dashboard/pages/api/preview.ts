@@ -19,7 +19,6 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
     res.status(200).json(data);
   } catch {
-    // FIXED: Removed unused 'e' variable
     res.status(500).json({ error: "Preview error" });
   }
 }

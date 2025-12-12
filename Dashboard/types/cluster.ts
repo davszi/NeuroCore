@@ -152,3 +152,15 @@ export interface TrainingJobConfig {
   batch_size: number;
   learning_rate: number;
 }
+
+
+export interface SingleRunMetrics {
+  runId: string;
+  config: any;
+  data: MetricEntry[];
+}
+
+export interface AttentionMetricsResponse {
+  sdpa?: SingleRunMetrics;
+  flash?: SingleRunMetrics;
+}
