@@ -13,7 +13,6 @@ const fetcher = (url: string) => fetch(url).then((res) => {
 });
 
 export default function UserStorageTable({ selectedVolume }: UserStorageTableProps) {
-  // Fetch specifically for this volume
   const { data, error, isLoading } = useSWR<{ user_storage: UserStorage[] }>(
     `/api/cluster-state?volume=${selectedVolume}`, 
     fetcher,

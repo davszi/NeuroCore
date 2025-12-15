@@ -1,7 +1,6 @@
 import { runCommand } from './ssh';
 import { NodeConfig, GpuNode, LoginNode, Job, Gpu, SlurmPartition, StorageVolume, UserStorage, GpuInventory } from '@/types/cluster';
 
-// --- A. Fetch Node Hardware ---
 export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInventory) {
   const DELIMITER = "---SECTION---";
   
@@ -17,14 +16,12 @@ export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInven
     `who | awk '{print $1}' | sort | uniq`
   ].join(';');
 
-  // Use 60s timeout from ssh.ts default
   const rawOutput = await runCommand(node, cmd);
-  
   if (!rawOutput) return null;
 
   const sections = rawOutput.split(DELIMITER).map(s => s.trim());
 
-  // Parse GPUs
+  // 1. Parse GPUs
   const gpus: Gpu[] = [];
   if (sections[0]) {
     sections[0].split('\n').forEach(line => {
@@ -33,22 +30,22 @@ export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInven
         gpus.push({
           gpu_id: parseInt(parts[0]),
           gpu_name: parts[1],
-          utilization_percent: parseFloat(parts[2]),
-          memory_used_mib: parseFloat(parts[3]),
-          memory_total_mib: parseFloat(parts[4]),
-          temperature_celsius: parseFloat(parts[5]),
-          power_draw_watts: parseFloat(parts[6]),
-          power_limit_watts: parseFloat(parts[7]),
+          utilization_percent: parseInt(parts[2]) || 0,
+          memory_used_mib: parseInt(parts[3]) || 0,
+          memory_total_mib: parseInt(parts[4]) || 0,
+          temperature_celsius: parseInt(parts[5]) || 0,
+          power_draw_watts: parseFloat(parts[6]) || 0,
+          power_limit_watts: parseFloat(parts[7]) || gpuInventory.defaults.power_limit_watts,
         });
       }
     });
   }
 
-  // Parse CPU/Mem/Users
   const cores_total = parseInt(sections[1] || '0');
   
   let mem_total_gb = 0;
   let mem_util_percent = 0;
+
   if (sections[2]) {
     const memLines = sections[2].split('\n');
     let totalKb = 0;
@@ -59,7 +56,8 @@ export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInven
     });
     if (totalKb > 0) {
       mem_total_gb = Math.round(totalKb / (1024 * 1024));
-      mem_util_percent = ((totalKb - availKb) / totalKb) * 100;
+      const usedKb = totalKb - availKb;
+      mem_util_percent = Math.round((usedKb / totalKb) * 100);
     }
   }
 
@@ -77,7 +75,7 @@ export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInven
     cpu_util_percent: 0, 
     mem_util_percent,
     active_users,
-    active_usernames
+    active_usernames,
   };
 
   if (gpus.length > 0) {
@@ -93,7 +91,6 @@ export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInven
   }
 }
 
-// --- B. Fetch Jobs ---
 export async function fetchJobsFromNode(node: NodeConfig): Promise<Job[]> {
   const records: Job[] = [];
 
@@ -145,7 +142,6 @@ export async function fetchJobsFromNode(node: NodeConfig): Promise<Job[]> {
   return records;
 }
 
-// --- C. Fetch Cluster Stats ---
 export async function fetchClusterStats(node: NodeConfig) {
   const SLURM_CMD = `sinfo -o "%.12P %.5C %.5a %.5I %.10m %.6G" --noheader || true`;
   const slurmOutput = await runCommand(node, SLURM_CMD);
@@ -159,25 +155,28 @@ export async function fetchClusterStats(node: NodeConfig) {
       const allocCpus = parseInt(parts[2]) || 0;
       const idleCpus = parseInt(parts[3]) || 0;
       const totalMemMb = parseInt(parts[4]) || 0;
+      
       const cpuAllocRatio = totalCpus > 0 ? allocCpus / totalCpus : 0;
       const memAllocated = (totalMemMb * cpuAllocRatio) / 1024;
       const memFree = (totalMemMb / 1024) - memAllocated;
 
-      let gpuAlloc = null;
+      let gpuAlloc = 0;
       if (parts.length >= 6 && parts[5].includes('gpu:')) {
          try { gpuAlloc = parseInt(parts[5].split(':').pop() || '0'); } catch {}
       }
 
       partitions.push({
-        partition: parts[0],
+        partition: parts[0].replace('*', ''),
         cpu_free: idleCpus,
         cpu_allocated: allocCpus,
-        gpu_free: null,
+        gpu_free: null, 
         gpu_allocated: gpuAlloc,
         mem_free_gb: Math.round(memFree),
         mem_allocated_gb: Math.round(memAllocated),
-        interactive_jobs_running: 0, interactive_jobs_pending: 0,
-        batch_jobs_running: 0, batch_jobs_pending: 0,
+        interactive_jobs_running: 0,
+        interactive_jobs_pending: 0,
+        batch_jobs_running: 0,
+        batch_jobs_pending: 0,
       });
     });
   }
@@ -209,17 +208,18 @@ export async function fetchClusterStats(node: NodeConfig) {
   return { partitions, volumes };
 }
 
-// --- D. Fetch User Storage (RESTORED LEGACY COMMAND) ---
 export async function fetchUserStorage(node: NodeConfig, targetDir: string): Promise<UserStorage[]> {
   console.log(`[Storage] Fetching ${targetDir}...`);
 
-  const CMD = `bash -c 'echo "["; first=1; for dir in ${targetDir}/*; do [ -d "$dir" ] || continue; user=$(basename "$dir"); used=$(du -sk "$dir" 2>/dev/null | awk "{print \\$1}"); [ -z "$used" ] && used=0; file_count=$(find "$dir" -maxdepth 3 -type f 2>/dev/null | wc -l); [ $first -eq 0 ] && echo ","; first=0; echo "{ \\"username\\": \\"$user\\", \\"used_kb\\": $used, \\"files\\": $file_count }"; done; echo "]"'`;
+  const safeTargetDir = targetDir.replace(/["'$`\\]/g, ''); 
+
+  const CMD = `bash -c 'echo "["; first=1; for dir in ${safeTargetDir}/*; do [ -d "$dir" ] || continue; user=$(basename "$dir"); used=$(du -sk "$dir" 2>/dev/null | awk "{print \\$1}"); [ -z "$used" ] && used=0; file_count=$(find "$dir" -maxdepth 3 -type f 2>/dev/null | wc -l); [ $first -eq 0 ] && echo ","; first=0; echo "{ \\"username\\": \\"$user\\", \\"used_kb\\": $used, \\"files\\": $file_count }"; done; echo "]"'`;
 
   try {
-    const output = await runCommand(node, CMD);
+    const output = await runCommand(node, CMD, 90000);
     
     if (!output || !output.trim()) {
-      console.warn(`[Storage] No output from ${targetDir}`);
+      console.warn(`[Storage] No output from ${safeTargetDir}`);
       return [];
     }
 
@@ -227,7 +227,7 @@ export async function fetchUserStorage(node: NodeConfig, targetDir: string): Pro
     const endIndex = output.lastIndexOf(']');
     
     if (startIndex === -1 || endIndex === -1) {
-      console.warn(`[Storage] Invalid JSON format`);
+      console.warn(`[Storage] Invalid JSON format returned`);
       return [];
     }
 

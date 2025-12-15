@@ -3,18 +3,11 @@ import useSWR from 'swr';
 import { 
   ClusterState, 
   Job, 
-  UserStorage, 
-  // We import these to ensure types align, even if not explicitly used in props here
-  GpuNode, 
-  LoginNode, 
-  StorageVolume, 
-  SlurmPartition 
+  UserStorage,
 } from '@/types/cluster';
 
-// --- Configuration ---
-const POLLING_INTERVAL = 10000; // Poll RAM cache every 10s
+const POLLING_INTERVAL = 10000; 
 
-// --- Fallback Data ---
 const EMPTY_STATE: ClusterState = {
   last_updated_timestamp: new Date().toISOString(),
   total_power_consumption_watts: 0,
@@ -24,7 +17,6 @@ const EMPTY_STATE: ClusterState = {
   slurm_queue_info: [],
 };
 
-// --- Mock Data for Initial Load Safety ---
 const FALLBACK_JOBS: Job[] = [];
 const MOCK_USER_STORAGE: UserStorage[] = [];
 
@@ -52,14 +44,12 @@ const fetcher = (url: string) => fetch(url).then((res) => {
 
 export const ClusterProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   
-  // 1. Fetch Preview (History from Disk) - Runs ONCE on load
   const { data: previewData } = useSWR<ClusterState>('/api/preview', fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     shouldRetryOnError: false,
   });
 
-  // 2. Fetch Realtime (RAM from Server) - Polls every 10s
   const { 
     data: liveState, 
     error: stateError,
@@ -76,7 +66,6 @@ export const ClusterProvider: React.FC<{ children: ReactNode }> = ({ children })
     refreshInterval: POLLING_INTERVAL,
   });
 
-  // 3. Smart Merge: Use Live if available, otherwise Preview, otherwise Empty
   const activeState = liveState || previewData || EMPTY_STATE;
   const activeJobs = liveJobs || FALLBACK_JOBS;
   const userStorage = activeState.user_storage || MOCK_USER_STORAGE;
@@ -84,19 +73,17 @@ export const ClusterProvider: React.FC<{ children: ReactNode }> = ({ children })
   const getJobById = (id: string) => activeJobs.find(j => String(j.pid) === id || j.session === id);
 
   const value = {
-    clusterState: activeState, // Shared structure
-    nodesState: activeState,   // Shared structure
+    clusterState: activeState,
+    nodesState: activeState,  
     jobs: activeJobs,
     userStorage,
     getJobById,
     
-    // Loading states
     isLoading: (!liveState && !previewData),
     isStateLoading,
     isJobsLoading,
-    isNodesLoading: isStateLoading, // They come from the same API source in this architecture
+    isNodesLoading: isStateLoading,
 
-    // Errors
     stateError,
     jobsError,
     nodesError: stateError

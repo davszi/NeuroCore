@@ -11,7 +11,6 @@ interface Props {
 }
 
 export default function RuntimePerEpochChart({ sdpaRuntime, flashRuntime }: Props) {
-  // Combine data by epoch
   const allEpochs = new Set([
     ...sdpaRuntime.map(d => d.epoch),
     ...flashRuntime.map(d => d.epoch)

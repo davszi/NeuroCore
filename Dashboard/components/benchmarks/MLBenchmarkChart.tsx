@@ -1,6 +1,5 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-// Define the shape of the data props
 interface TrainingData {
   step: number;
   loss: number;
@@ -11,11 +10,12 @@ interface Props {
 }
 
 export default function MLBenchmarkChart({ baselineData, flashData }: Props) {
-  // Combine data by step (similar to PerplexityChart)
+
   const allSteps = new Set([
     ...baselineData.map(d => d.step),
     ...flashData.map(d => d.step)
   ]);
+  
   const sortedSteps = Array.from(allSteps).sort((a, b) => a - b);
 
   const baselineMap = new Map(baselineData.map(d => [d.step, d.loss]));

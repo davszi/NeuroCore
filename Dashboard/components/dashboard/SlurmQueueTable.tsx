@@ -7,7 +7,6 @@ export default function SlurmQueueTable() {
 
   const renderCell = (value: number | null | undefined) => (value ?? "-");
 
-  // Ensure we always have an array to map over
   const slurmQueue = clusterState?.slurm_queue_info ?? [];
 
   if (isStateLoading && !stateError) {

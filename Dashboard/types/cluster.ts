@@ -1,12 +1,10 @@
-// types/cluster.ts
-
 // --- Node & Cluster Interfaces ---
 export interface NodeConfig {
   name: string;
   host: string;
   port: number;
+  hasGpu: boolean;
   user: string;
-  password?: string;
 }
 
 export interface Gpu {
@@ -108,7 +106,6 @@ export interface MetricEntry {
   ram_usage_GB: number;
   gpu_mem_GB: number;
   note: string;
-  // Calculated fields potentially added by API:
   runtime_seconds?: number; 
 }
 
@@ -153,14 +150,8 @@ export interface TrainingJobConfig {
   learning_rate: number;
 }
 
-
 export interface SingleRunMetrics {
   runId: string;
   config: any;
   data: MetricEntry[];
-}
-
-export interface AttentionMetricsResponse {
-  sdpa?: SingleRunMetrics;
-  flash?: SingleRunMetrics;
 }
