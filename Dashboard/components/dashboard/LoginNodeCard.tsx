@@ -38,7 +38,6 @@ export default function LoginNodeCard({ node }: LoginNodeCardProps) {
             {node.active_users} Active User{node.active_users !== 1 ? 's' : ''}
           </span>
         </div>
-
         {expanded ? (
           <HiChevronUp className="w-4 h-4" />
         ) : (
@@ -47,20 +46,24 @@ export default function LoginNodeCard({ node }: LoginNodeCardProps) {
       </button>
 
       {/* --- Expandable Username List --- */}
-      {expanded && node.active_usernames?.length > 0 && (
-        <div className="mt-3 bg-gray-800 p-3 rounded-lg border border-gray-700">
-          <h4 className="text-xs font-semibold text-gray-400 mb-2">Logged-in users:</h4>
-          <ul className="space-y-1 text-sm text-cyan-300">
-            {node.active_usernames.map((user) => (
-              <li key={user}>• {user}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {
+        expanded && node.active_usernames?.length > 0 && (
+          <div className="mt-3 bg-gray-800 p-3 rounded-lg border border-gray-700">
+            <h4 className="text-xs font-semibold text-gray-400 mb-2">Active Users:</h4>
+            <ul className="space-y-1 text-sm text-cyan-300">
+              {node.active_usernames.map((user) => (
+                <li key={user}>• {user}</li>
+              ))}
+            </ul>
+          </div>
+        )
+      }
 
-      {expanded && node.active_usernames?.length === 0 && (
-        <p className="mt-2 text-xs text-gray-500">No users currently logged in.</p>
-      )}
-    </div>
+      {
+        expanded && node.active_usernames?.length === 0 && (
+          <p className="mt-2 text-xs text-gray-500">No users currently logged in.</p>
+        )
+      }
+    </div >
   );
 }

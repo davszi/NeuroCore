@@ -38,7 +38,7 @@ export function startBackgroundServices() {
 
 async function poll() {
   console.log(`[Worker] 🔄 Polling ${CLUSTER_NODES.length} nodes...`);
-  
+
   try {
     const gpuNodes: GpuNode[] = [];
     const loginNodes: LoginNode[] = [];
@@ -49,7 +49,7 @@ async function poll() {
     const nodePromises = CLUSTER_NODES.map(async (node) => {
       try {
         const safeNode = node as unknown as NodeConfig;
-        
+
         const result = await fetchNodeHardware(safeNode, GPU_INVENTORY);
         if (!result) return;
 
@@ -82,7 +82,7 @@ async function poll() {
       try {
         const headNode = CLUSTER_NODES[0] as unknown as NodeConfig;
         const clusterStats = await fetchClusterStats(headNode);
-        
+
         if (clusterStats) {
           storageVolumes = clusterStats.volumes;
           slurmQueue = clusterStats.partitions;
@@ -94,21 +94,21 @@ async function poll() {
     }
 
     const timestamp = new Date().toISOString();
-    
+
     const nodeStatePayload: ClusterState = {
       last_updated_timestamp: timestamp,
       total_power_consumption_watts: Math.round(totalPower),
       login_nodes: loginNodes.sort((a, b) => a.node_name.localeCompare(b.node_name)),
       gpu_nodes: gpuNodes.sort((a, b) => a.node_name.localeCompare(b.node_name)),
-      
-      storage: storageVolumes, 
+
+      storage: storageVolumes,
       slurm_queue_info: slurmQueue,
-      
-      user_storage: [] 
+
+      user_storage: []
     };
 
     globalThis.CLUSTER_CACHE.nodeState = nodeStatePayload;
-    globalThis.CLUSTER_CACHE.clusterState = nodeStatePayload; 
+    globalThis.CLUSTER_CACHE.clusterState = nodeStatePayload;
     globalThis.CLUSTER_CACHE.jobs = allJobs;
     globalThis.CLUSTER_CACHE.lastUpdated = Date.now();
     globalThis.CLUSTER_CACHE.isReady = true;
@@ -125,12 +125,12 @@ const saveHistory = async () => {
   try {
     const snapshotDir = path.join(process.cwd(), "data/node-history");
     if (!fs.existsSync(snapshotDir)) fs.mkdirSync(snapshotDir, { recursive: true });
-    
+
     const fileName = `snapshot-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
     fs.writeFileSync(path.join(snapshotDir, fileName), JSON.stringify(globalThis.CLUSTER_CACHE.nodeState));
-    
+
     console.log(`[Worker] 💾 History Saved: ${fileName}`);
-  } catch (e) { 
-    console.error("[Worker] Save History Failed:", e); 
+  } catch (e) {
+    console.error("[Worker] Save History Failed:", e);
   }
 };

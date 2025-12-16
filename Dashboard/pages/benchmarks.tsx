@@ -36,7 +36,8 @@ interface NodeData {
 function formattedDate(ts: number, range: string) {
   const date = new Date(ts);
   if (range === "today") return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (range === "7d") return date.toLocaleDateString([], { weekday: 'short' });
+  if (range === "7d") return date.toLocaleDateString([], { weekday: 'short' }); // Just day name, ticks logic handles separation
+  if (range === "1y") return date.toLocaleDateString([], { month: 'short' });
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
@@ -63,7 +64,7 @@ function inRange(ts: number, range: "today" | "7d" | "month" | "1y") {
 
 export default function BenchmarksPage() {
   const router = useRouter();
-  
+
   // Data Fetching
   const { data: snapshots = [], isLoading: isHistoryLoading } = useSWR<ClusterState[]>("/api/node-history", fetcher, { refreshInterval: 60000 });
   const { data: attentionMetrics, isLoading: isMlLoading } = useSWR<AttentionMetricsResponse>("/api/attention-metrics", fetcher);
@@ -72,7 +73,7 @@ export default function BenchmarksPage() {
   const [activeTab, setActiveTab] = useState<"performance" | "ml">("performance");
   const [perfSubTab, setPerfSubTab] = useState<"parameter" | "node">("parameter");
   const [range, setRange] = useState<"today" | "7d" | "month" | "1y">("today");
-  
+
   const [isModalOpen, setModalOpen] = useState(false);
   const [isStarting, setStarting] = useState(false);
   const [activeRun, setActiveRun] = useState<{ pid: string, node: string } | null>(null);
@@ -89,10 +90,10 @@ export default function BenchmarksPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config, nodeName }),
       });
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to start");
-      
+
       const runInfo = { pid: data.pid, node: nodeName };
       setActiveRun(runInfo);
       localStorage.setItem("activeRun", JSON.stringify(runInfo)); // Save state
@@ -117,10 +118,10 @@ export default function BenchmarksPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pid: activeRun.pid, nodeName: activeRun.node }),
       });
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      
+
       alert("Training stopped successfully.");
       setActiveRun(null);
       localStorage.removeItem("activeRun"); // Clear state
@@ -182,9 +183,9 @@ export default function BenchmarksPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-4 md:p-6 font-sans">
-      
+
       <header className="flex flex-col lg:flex-row lg:justify-between lg:items-end mb-8 gap-6 border-b border-gray-800 pb-6">
-        
+
         <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight text-white mb-2">
             {activeTab === "ml" ? "ML Benchmarks" : "System Metrics"}
@@ -197,32 +198,30 @@ export default function BenchmarksPage() {
         </div>
 
         <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
-          
+
           <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-800">
             <button
               onClick={() => setActiveTab("performance")}
-              className={`px-5 py-2 rounded-md text-sm font-semibold transition-all ${
-                activeTab === "performance" ? "bg-gray-800 text-white shadow-sm" : "text-gray-400 hover:text-gray-200"
-              }`}
+              className={`px-5 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === "performance" ? "bg-gray-800 text-white shadow-sm" : "text-gray-400 hover:text-gray-200"
+                }`}
             >
               Cluster Performance
             </button>
             <button
               onClick={() => setActiveTab("ml")}
-              className={`px-5 py-2 rounded-md text-sm font-semibold transition-all ${
-                activeTab === "ml" ? "bg-cyan-900/30 text-cyan-100 shadow-sm" : "text-gray-400 hover:text-gray-200"
-              }`}
+              className={`px-5 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === "ml" ? "bg-cyan-900/30 text-cyan-100 shadow-sm" : "text-gray-400 hover:text-gray-200"
+                }`}
             >
               ML Benchmarks
             </button>
           </div>
 
           <div className="flex items-center gap-3">
-            
+
             {activeTab === "ml" && (
               <div className="flex items-center gap-3">
                 {activeRun && (
-                  <button 
+                  <button
                     onClick={handleCancelTraining}
                     disabled={isCanceling}
                     className="bg-red-600 hover:bg-red-500 text-white px-4 py-1.5 rounded-md font-medium text-xs uppercase tracking-wide transition-colors shadow-lg flex items-center gap-2 animate-pulse"
@@ -230,9 +229,9 @@ export default function BenchmarksPage() {
                     {isCanceling ? "Stopping..." : `Stop Run (PID: ${activeRun.pid})`}
                   </button>
                 )}
-                
+
                 {!activeRun && (
-                  <button 
+                  <button
                     onClick={() => setModalOpen(true)}
                     className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-1.5 rounded-md font-medium text-xs uppercase tracking-wide transition-colors shadow-lg shadow-cyan-900/20 flex items-center gap-2"
                   >
@@ -248,9 +247,8 @@ export default function BenchmarksPage() {
                   <button
                     key={r}
                     onClick={() => setRange(r)}
-                    className={`px-3 py-1 rounded text-xs font-semibold transition-all ${
-                      range === r ? "bg-cyan-600 text-white shadow" : "text-gray-400 hover:text-white hover:bg-gray-800"
-                    }`}
+                    className={`px-3 py-1 rounded text-xs font-semibold transition-all ${range === r ? "bg-cyan-600 text-white shadow" : "text-gray-400 hover:text-white hover:bg-gray-800"
+                      }`}
                   >
                     {r.toUpperCase()}
                   </button>
@@ -262,30 +260,28 @@ export default function BenchmarksPage() {
       </header>
 
       <main className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-        
+
         {activeTab === "performance" && (
           <div className="space-y-6">
             <div className="flex space-x-6 border-b border-gray-800 mb-6">
               <button
                 onClick={() => setPerfSubTab("parameter")}
-                className={`pb-3 text-sm font-medium border-b-2 transition-colors px-2 ${
-                  perfSubTab === "parameter" ? "border-cyan-500 text-cyan-400" : "border-transparent text-gray-400 hover:text-gray-200"
-                }`}
+                className={`pb-3 text-sm font-medium border-b-2 transition-colors px-2 ${perfSubTab === "parameter" ? "border-cyan-500 text-cyan-400" : "border-transparent text-gray-400 hover:text-gray-200"
+                  }`}
               >
                 PARAMETER VIEW
               </button>
               <button
                 onClick={() => setPerfSubTab("node")}
-                className={`pb-3 text-sm font-medium border-b-2 transition-colors px-2 ${
-                  perfSubTab === "node" ? "border-cyan-500 text-cyan-400" : "border-transparent text-gray-400 hover:text-gray-200"
-                }`}
+                className={`pb-3 text-sm font-medium border-b-2 transition-colors px-2 ${perfSubTab === "node" ? "border-cyan-500 text-cyan-400" : "border-transparent text-gray-400 hover:text-gray-200"
+                  }`}
               >
                 NODE VIEW
               </button>
             </div>
 
             {isHistoryLoading ? (
-               <LoadingSkeleton />
+              <LoadingSkeleton />
             ) : !hasData ? (
               <div className="flex flex-col items-center justify-center h-64 border border-dashed border-gray-800 rounded-xl bg-gray-900/30 text-gray-500">
                 <p>No telemetry data found for this period.</p>
@@ -305,7 +301,7 @@ export default function BenchmarksPage() {
         {activeTab === "ml" && (
           <div className="space-y-6">
             {isMlLoading && !attentionMetrics ? (
-               <LoadingSkeleton />
+              <LoadingSkeleton />
             ) : attentionMetrics ? (
               <MLBenchmarksView attentionMetrics={attentionMetrics} />
             ) : (
@@ -322,9 +318,9 @@ export default function BenchmarksPage() {
         )}
       </main>
 
-      <NewRunModal 
-        isOpen={isModalOpen} 
-        onClose={() => setModalOpen(false)} 
+      <NewRunModal
+        isOpen={isModalOpen}
+        onClose={() => setModalOpen(false)}
         onStart={handleStartTraining}
         isLoading={isStarting}
       />
@@ -344,20 +340,68 @@ function LoadingSkeleton() {
 
 function ParameterWiseView({ data, nodeKeys, range }: { data: BenchmarkDataPoint[]; nodeKeys: string[]; range: string }) {
   const chartConfig = [
-    { title: "GPU Utilization", keySuffix: "_util", unit: "%", yDomain: [0, 100] as [number, number] },
-    { title: "VRAM Usage", keySuffix: "_vram", unit: " GB", yDomain: ["auto", "auto"] as const },
-    { title: "GPU Temperature", keySuffix: "_temp", unit: "°C", yDomain: ["auto", "auto"] as const },
+    { title: "GPU Utilization", keySuffix: "_util", unit: "%", yDomain: [0, 100] as [number, number], color: "#06b6d4" },
+    { title: "VRAM Usage", keySuffix: "_vram", unit: " GB", yDomain: ["auto", "auto"] as const, color: "#eab308" },
+    { title: "GPU Temperature", keySuffix: "_temp", unit: "°C", yDomain: ["auto", "auto"] as const, color: "#f43f5e" },
   ];
 
   const nodeColors = ["#3b82f6", "#ef4444", "#eab308", "#10b981", "#8b5cf6", "#f97316", "#06b6d4"];
 
+
+  const { ticks, domain } = useMemo(() => {
+    const end = Date.now();
+    let start = end;
+    let generatedTicks: number[] | undefined = undefined;
+
+    if (range === '7d') {
+      start = end - 7 * 24 * 60 * 60 * 1000;
+      generatedTicks = [];
+      // Generate 7 ticks for the last 7 days
+      for (let i = 6; i >= 0; i--) {
+        generatedTicks.push(end - i * 24 * 60 * 60 * 1000);
+      }
+    } else if (range === '1y') {
+      start = end - 365 * 24 * 60 * 60 * 1000;
+      generatedTicks = [];
+      // Generate 12 ticks for the last 12 months
+      for (let i = 11; i >= 0; i--) {
+        generatedTicks.push(end - i * 30 * 24 * 60 * 60 * 1000);
+      }
+    } else if (data.length > 0) {
+      // Default auto domain for today or other ranges
+      start = Math.min(...data.map(d => d.timestamp));
+    }
+
+    return {
+      ticks: generatedTicks,
+      domain: range === '7d' || range === '1y' ? [start, end] : ['auto', 'auto']
+    };
+  }, [data, range]);
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {chartConfig.map((config) => (
-        <div key={config.title} className="bg-gray-900 border border-gray-800 rounded-lg p-4 shadow-sm hover:border-gray-700 transition-colors">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-sm font-semibold text-gray-200">{config.title}</h3>
-            <span className="text-xs bg-gray-800 px-2 py-0.5 rounded text-gray-400 border border-gray-700">{config.unit.trim()}</span>
+        <div key={config.title} className="bg-gray-900 border border-gray-800 rounded-lg p-5 shadow-sm">
+          <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between border-b border-gray-800 pb-2">
+            <div>
+              <h3 className="text-sm font-bold text-white tracking-wide">{config.title}</h3>
+              <p className="text-[10px] text-gray-500 uppercase mt-0.5 mb-2 md:mb-0">Unit: {config.unit.trim()}</p>
+            </div>
+
+            {/* Custom Header Legend */}
+            <div className="flex flex-wrap gap-3 mt-1.5 md:mt-0 justify-end">
+              {nodeKeys.slice(0, 4).map((nodeKey, idx) => (
+                <div key={nodeKey} className="flex items-center gap-1.5">
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: nodeColors[idx % nodeColors.length] }}
+                  />
+                  <span className="text-[10px] text-gray-400 uppercase">
+                    {nodeKey.replace(/cloud-|gpu\s?/gi, '').replace('-', '')}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="h-60 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -371,10 +415,21 @@ function ParameterWiseView({ data, nodeKeys, range }: { data: BenchmarkDataPoint
                   ))}
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.3} />
-                <XAxis dataKey="timestamp" tickFormatter={(ts) => formattedDate(ts, range)} stroke="#525252" tick={{ fontSize: 10, fill: "#9ca3af" }} tickLine={false} axisLine={false} minTickGap={30} />
+                <XAxis
+                  dataKey="timestamp"
+                  tickFormatter={(ts) => formattedDate(ts, range)}
+                  stroke="#525252"
+                  tick={{ fontSize: 10, fill: "#737373" }}
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={range === 'today' ? 60 : 10}
+                  ticks={ticks}
+                  domain={domain as any}
+                  type="number"
+                  interval={ticks ? 0 : 'preserveStartEnd'}
+                />
                 <YAxis stroke="#525252" tick={{ fontSize: 10, fill: "#9ca3af" }} tickLine={false} axisLine={false} domain={config.yDomain} width={35} />
-                <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#1e293b", borderRadius: "6px", fontSize: "12px", color: "#f1f5f9" }} labelFormatter={(ts) => new Date(ts).toLocaleString()} formatter={(value: number) => [value.toFixed(1) + config.unit, ""]} itemStyle={{ padding: 0 }} />
-                <Legend wrapperStyle={{ paddingTop: "12px", fontSize: "11px" }} iconType="circle" />
+                <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#1e293b", borderRadius: "6px", fontSize: "12px", color: "#f1f5f9" }} labelFormatter={(ts) => new Date(ts).toLocaleString()} formatter={(value: number, name: string) => [value.toFixed(1) + config.unit, name.replace('-', ' ')]} itemStyle={{ padding: 0 }} />
                 {nodeKeys.map((nodeKey, idx) => (
                   <Area key={nodeKey} type="monotone" dataKey={`${nodeKey}${config.keySuffix}`} name={nodeKey.replace("-", " ")} stroke={nodeColors[idx % nodeColors.length]} fill={`url(#gradient-${config.keySuffix}-${idx})`} strokeWidth={2} activeDot={{ r: 4, strokeWidth: 0 }} fillOpacity={1} connectNulls={true} />
                 ))}
@@ -385,9 +440,36 @@ function ParameterWiseView({ data, nodeKeys, range }: { data: BenchmarkDataPoint
       ))}
     </div>
   );
+
+
 }
 
 function NodeWiseView({ nodes, range }: { nodes: NodeData[]; range: string }) {
+  const { ticks, domain } = useMemo(() => {
+    const end = Date.now();
+    let start = end;
+    let generatedTicks: number[] | undefined = undefined;
+
+    if (range === '7d') {
+      start = end - 7 * 24 * 60 * 60 * 1000;
+      generatedTicks = [];
+      for (let i = 6; i >= 0; i--) {
+        generatedTicks.push(end - i * 24 * 60 * 60 * 1000);
+      }
+    } else if (range === '1y') {
+      start = end - 365 * 24 * 60 * 60 * 1000;
+      generatedTicks = [];
+      for (let i = 11; i >= 0; i--) {
+        generatedTicks.push(end - i * 30 * 24 * 60 * 60 * 1000);
+      }
+    }
+
+    return {
+      ticks: generatedTicks,
+      domain: range === '7d' || range === '1y' ? [start, end] : ['auto', 'auto']
+    };
+  }, [nodes, range]);
+
   if (nodes.length === 0) return null;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -412,7 +494,19 @@ function NodeWiseView({ nodes, range }: { nodes: NodeData[]; range: string }) {
                   <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f43f5e" stopOpacity={0.15} /><stop offset="95%" stopColor="#f43f5e" stopOpacity={0} /></linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.2} />
-                <XAxis dataKey="timestamp" tickFormatter={(ts) => formattedDate(ts, range)} stroke="#525252" tick={{ fontSize: 10, fill: "#737373" }} tickLine={false} axisLine={false} minTickGap={40} />
+                <XAxis
+                  dataKey="timestamp"
+                  tickFormatter={(ts) => formattedDate(ts, range)}
+                  stroke="#525252"
+                  tick={{ fontSize: 10, fill: "#737373" }}
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={range === 'today' ? 60 : 10}
+                  ticks={ticks}
+                  domain={domain as any}
+                  type="number"
+                  interval={ticks ? 0 : 'preserveStartEnd'}
+                />
                 <YAxis yAxisId="left" stroke="#06b6d4" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} domain={[0, 100]} width={30} />
                 <YAxis yAxisId="right" orientation="right" stroke="#eab308" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={30} />
                 <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#1e293b", borderRadius: "6px", fontSize: "12px", color: "#f1f5f9" }} labelFormatter={(ts) => new Date(ts).toLocaleString()} />

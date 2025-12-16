@@ -3,7 +3,7 @@ import { NodeConfig, GpuNode, LoginNode, Job, Gpu, SlurmPartition, StorageVolume
 
 export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInventory) {
   const DELIMITER = "---SECTION---";
-  
+
   const cmd = [
     `nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit --format=csv,noheader,nounits || true`,
     `echo "${DELIMITER}"`,
@@ -11,7 +11,7 @@ export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInven
     `echo "${DELIMITER}"`,
     `grep -E 'MemTotal|MemAvailable' /proc/meminfo`,
     `echo "${DELIMITER}"`,
-    `who | wc -l`,
+    `who | awk '{print $1}' | sort | uniq | wc -l`,
     `echo "${DELIMITER}"`,
     `who | awk '{print $1}' | sort | uniq`
   ].join(';');
@@ -42,7 +42,7 @@ export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInven
   }
 
   const cores_total = parseInt(sections[1] || '0');
-  
+
   let mem_total_gb = 0;
   let mem_util_percent = 0;
 
@@ -72,7 +72,7 @@ export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInven
     node_name: node.name,
     cores_total: finalCores,
     mem_total_gb: finalMem,
-    cpu_util_percent: 0, 
+    cpu_util_percent: 0,
     mem_util_percent,
     active_users,
     active_usernames,
@@ -155,21 +155,21 @@ export async function fetchClusterStats(node: NodeConfig) {
       const allocCpus = parseInt(parts[2]) || 0;
       const idleCpus = parseInt(parts[3]) || 0;
       const totalMemMb = parseInt(parts[4]) || 0;
-      
+
       const cpuAllocRatio = totalCpus > 0 ? allocCpus / totalCpus : 0;
       const memAllocated = (totalMemMb * cpuAllocRatio) / 1024;
       const memFree = (totalMemMb / 1024) - memAllocated;
 
       let gpuAlloc = 0;
       if (parts.length >= 6 && parts[5].includes('gpu:')) {
-         try { gpuAlloc = parseInt(parts[5].split(':').pop() || '0'); } catch {}
+        try { gpuAlloc = parseInt(parts[5].split(':').pop() || '0'); } catch { }
       }
 
       partitions.push({
         partition: parts[0].replace('*', ''),
         cpu_free: idleCpus,
         cpu_allocated: allocCpus,
-        gpu_free: null, 
+        gpu_free: null,
         gpu_allocated: gpuAlloc,
         mem_free_gb: Math.round(memFree),
         mem_allocated_gb: Math.round(memAllocated),
@@ -211,13 +211,13 @@ export async function fetchClusterStats(node: NodeConfig) {
 export async function fetchUserStorage(node: NodeConfig, targetDir: string): Promise<UserStorage[]> {
   console.log(`[Storage] Fetching ${targetDir}...`);
 
-  const safeTargetDir = targetDir.replace(/["'$`\\]/g, ''); 
+  const safeTargetDir = targetDir.replace(/["'$`\\]/g, '');
 
   const CMD = `bash -c 'echo "["; first=1; for dir in ${safeTargetDir}/*; do [ -d "$dir" ] || continue; user=$(basename "$dir"); used=$(du -sk "$dir" 2>/dev/null | awk "{print \\$1}"); [ -z "$used" ] && used=0; file_count=$(find "$dir" -maxdepth 3 -type f 2>/dev/null | wc -l); [ $first -eq 0 ] && echo ","; first=0; echo "{ \\"username\\": \\"$user\\", \\"used_kb\\": $used, \\"files\\": $file_count }"; done; echo "]"'`;
 
   try {
     const output = await runCommand(node, CMD, 90000);
-    
+
     if (!output || !output.trim()) {
       console.warn(`[Storage] No output from ${safeTargetDir}`);
       return [];
@@ -225,7 +225,7 @@ export async function fetchUserStorage(node: NodeConfig, targetDir: string): Pro
 
     const startIndex = output.indexOf('[');
     const endIndex = output.lastIndexOf(']');
-    
+
     if (startIndex === -1 || endIndex === -1) {
       console.warn(`[Storage] Invalid JSON format returned`);
       return [];

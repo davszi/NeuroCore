@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import GpuCard from './GpuCard';
 import ProgressBar from '../ui/ProgressBar';
@@ -5,7 +6,7 @@ import { HiUsers, HiChevronDown, HiChevronUp } from 'react-icons/hi';
 import { GpuNode } from '@/types/cluster'; // Import shared type
 
 interface NodeCardProps {
-  node: GpuNode; 
+  node: GpuNode;
 }
 
 export default function NodeCard({ node }: NodeCardProps) {
@@ -13,7 +14,7 @@ export default function NodeCard({ node }: NodeCardProps) {
 
   return (
     <div className="bg-gray-900 shadow-lg rounded-lg p-4 border border-gray-700">
-      
+
       {/* --- Node Header --- */}
       <div className="mb-4">
         <h3 className="text-xl font-bold text-white">{node.node_name}</h3>
@@ -56,7 +57,7 @@ export default function NodeCard({ node }: NodeCardProps) {
       {/* --- Expandable Username List --- */}
       {expanded && node.active_usernames?.length > 0 && (
         <div className="mb-4 bg-gray-800 p-3 rounded-lg border border-gray-700">
-          <h4 className="text-xs font-semibold text-gray-400 mb-2">Logged-in users:</h4>
+          <h4 className="text-xs font-semibold text-gray-400 mb-2">Active Users:</h4>
           <ul className="space-y-1 text-sm text-cyan-300">
             {node.active_usernames.map((user) => (
               <li key={user}>• {user}</li>
