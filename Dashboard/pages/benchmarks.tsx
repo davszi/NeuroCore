@@ -18,6 +18,9 @@ import RuntimePerEpochChart from "../components/benchmarks/RuntimePerEpochChart"
 import MLBenchmarkChart from "../components/benchmarks/MLBenchmarkChart";
 import RunConfigurationsTable from "../components/benchmarks/RunConfigurationsTable";
 import NewRunModal from "@/components/benchmarks/NewRunModal";
+import PerformanceBenchmarkModal from "@/components/benchmarks/PerformanceBenchmarkModal";
+import BenchmarkResultsView, { BenchmarkResult } from "@/components/benchmarks/BenchmarkResultsView";
+import { MonthlyBenchmarkData } from "@/components/benchmarks/MonthlyComparisonChart";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -65,12 +68,8 @@ function inRange(ts: number, range: "today" | "7d" | "month" | "1y") {
 export default function BenchmarksPage() {
   const router = useRouter();
 
-  // Data Fetching
-  const { data: snapshots = [], isLoading: isHistoryLoading } = useSWR<ClusterState[]>("/api/node-history", fetcher, { refreshInterval: 60000 });
-  const { data: attentionMetrics, isLoading: isMlLoading } = useSWR<AttentionMetricsResponse>("/api/attention-metrics", fetcher);
-
   // State
-  const [activeTab, setActiveTab] = useState<"performance" | "ml">("performance");
+  const [activeTab, setActiveTab] = useState<"performance" | "ml" | "perf-benchmark">("performance");
   const [perfSubTab, setPerfSubTab] = useState<"parameter" | "node">("parameter");
   const [range, setRange] = useState<"today" | "7d" | "month" | "1y">("today");
 
@@ -78,6 +77,32 @@ export default function BenchmarksPage() {
   const [isStarting, setStarting] = useState(false);
   const [activeRun, setActiveRun] = useState<{ pid: string, node: string } | null>(null);
   const [isCanceling, setCanceling] = useState(false);
+
+  // Performance Benchmark State
+  const [isPerfBenchmarkModalOpen, setPerfBenchmarkModalOpen] = useState(false);
+  const [isPerfBenchmarkStarting, setPerfBenchmarkStarting] = useState(false);
+  const [perfBenchmarkError, setPerfBenchmarkError] = useState<string | undefined>();
+  const [currentBenchmarkId, setCurrentBenchmarkId] = useState<string | null>(null);
+  const [benchmarkResults, setBenchmarkResults] = useState<BenchmarkResult[]>([]);
+  const [monthlyData, setMonthlyData] = useState<MonthlyBenchmarkData[]>([]);
+
+  // Data Fetching
+  const { data: snapshots = [], isLoading: isHistoryLoading } = useSWR<ClusterState[]>("/api/node-history", fetcher, { refreshInterval: 60000 });
+  const { data: attentionMetrics, isLoading: isMlLoading } = useSWR<AttentionMetricsResponse>("/api/attention-metrics", fetcher);
+  
+  // Performance Benchmark Status Polling
+  const { data: benchmarkStatus } = useSWR(
+    currentBenchmarkId ? `/api/performance-benchmark/status?benchmarkId=${currentBenchmarkId}` : null,
+    fetcher,
+    { refreshInterval: 2000 } // Poll every 2 seconds when benchmark is running
+  );
+  
+  // Monthly Benchmark Data
+  const { data: monthlyBenchmarkData } = useSWR<{ data: MonthlyBenchmarkData[] }>(
+    "/api/performance-benchmark/monthly",
+    fetcher,
+    { refreshInterval: 60000 }
+  );
 
   const ranges = ["today", "7d", "month", "1y"] as const;
 
@@ -140,6 +165,58 @@ export default function BenchmarksPage() {
     }
   }, []);
 
+  // Update benchmark results when status changes
+  useEffect(() => {
+    if (benchmarkStatus) {
+      console.log('[Frontend] Benchmark Status:', {
+        benchmarkId: currentBenchmarkId,
+        isRunning: benchmarkStatus.isRunning,
+        resultsCount: benchmarkStatus.results?.length || 0,
+        completedCount: benchmarkStatus.results?.filter((r: BenchmarkResult) => r.status === 'completed').length || 0,
+      });
+      setBenchmarkResults(benchmarkStatus.results || []);
+      if (!benchmarkStatus.isRunning && currentBenchmarkId) {
+        // Benchmark completed, fetch monthly data
+        console.log('[Frontend] Benchmark completed!');
+        setCurrentBenchmarkId(null);
+      }
+    }
+  }, [benchmarkStatus, currentBenchmarkId]);
+
+  // Update monthly data
+  useEffect(() => {
+    if (monthlyBenchmarkData?.data) {
+      setMonthlyData(monthlyBenchmarkData.data);
+    }
+  }, [monthlyBenchmarkData]);
+
+  // Performance Benchmark Handlers
+  const handleStartPerformanceBenchmark = async (password: string) => {
+    setPerfBenchmarkStarting(true);
+    setPerfBenchmarkError(undefined);
+    
+    try {
+      const res = await fetch('/api/performance-benchmark/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to start benchmark");
+      }
+
+      setCurrentBenchmarkId(data.benchmarkId);
+      setPerfBenchmarkModalOpen(false);
+      setBenchmarkResults([]); // Reset results
+    } catch (e: any) {
+      setPerfBenchmarkError(e.message);
+    } finally {
+      setPerfBenchmarkStarting(false);
+    }
+  };
+
   const processedData = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return { parameterWise: [], nodeWise: [], keys: [] };
 
@@ -188,11 +265,13 @@ export default function BenchmarksPage() {
 
         <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight text-white mb-2">
-            {activeTab === "ml" ? "ML Benchmarks" : "System Metrics"}
+            {activeTab === "ml" ? "ML Benchmarks" : activeTab === "perf-benchmark" ? "Performance Benchmark" : "System Metrics"}
           </h1>
           <p className="text-gray-400 text-sm max-w-2xl leading-relaxed">
             {activeTab === "ml"
               ? "Deep learning training efficiency and loss analysis."
+              : activeTab === "perf-benchmark"
+              ? "Monthly GPU performance comparison to track degradation over time."
               : "Real-time and historical overview of GPU utilization, memory consumption, and thermal status."}
           </p>
         </div>
@@ -213,6 +292,13 @@ export default function BenchmarksPage() {
                 }`}
             >
               ML Benchmarks
+            </button>
+            <button
+              onClick={() => setActiveTab("perf-benchmark")}
+              className={`px-5 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === "perf-benchmark" ? "bg-red-900/30 text-red-100 shadow-sm" : "text-gray-400 hover:text-gray-200"
+                }`}
+            >
+              Performance Benchmark
             </button>
           </div>
 
@@ -254,6 +340,15 @@ export default function BenchmarksPage() {
                   </button>
                 ))}
               </div>
+            )}
+
+            {activeTab === "perf-benchmark" && (
+              <button
+                onClick={() => setPerfBenchmarkModalOpen(true)}
+                className="bg-red-600 hover:bg-red-500 text-white px-4 py-1.5 rounded-md font-medium text-xs uppercase tracking-wide transition-colors shadow-lg flex items-center gap-2"
+              >
+                <span>+</span> Start Benchmark
+              </button>
             )}
           </div>
         </div>
@@ -316,6 +411,17 @@ export default function BenchmarksPage() {
             )}
           </div>
         )}
+
+        {activeTab === "perf-benchmark" && (
+          <div className="space-y-6">
+            <BenchmarkResultsView
+              results={benchmarkResults}
+              monthlyData={monthlyData}
+              isRunning={benchmarkStatus?.isRunning || false}
+              currentGpu={benchmarkStatus?.currentGpu}
+            />
+          </div>
+        )}
       </main>
 
       <NewRunModal
@@ -323,6 +429,17 @@ export default function BenchmarksPage() {
         onClose={() => setModalOpen(false)}
         onStart={handleStartTraining}
         isLoading={isStarting}
+      />
+
+      <PerformanceBenchmarkModal
+        isOpen={isPerfBenchmarkModalOpen}
+        onClose={() => {
+          setPerfBenchmarkModalOpen(false);
+          setPerfBenchmarkError(undefined);
+        }}
+        onStart={handleStartPerformanceBenchmark}
+        isLoading={isPerfBenchmarkStarting}
+        error={perfBenchmarkError}
       />
     </div>
   );
