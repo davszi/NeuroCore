@@ -11,8 +11,11 @@ import {
 } from 'recharts';
 
 export interface MonthlyBenchmarkData {
+  timestamp?: string; // ISO timestamp of when benchmark was run
   month: string; // e.g., "2024-01", "2024-02"
   gpuId: string; // e.g., "cloud-243-gpu-0"
+  gpuName?: string;
+  nodeName?: string;
   metrics: {
     utilization_avg: number;
     memory_used_avg: number;
@@ -29,31 +32,51 @@ interface Props {
 
 export default function MonthlyComparisonChart({ data, metric }: Props) {
   const chartData = useMemo(() => {
-    // Group by month and GPU
-    const monthMap: Record<string, Record<string, MonthlyBenchmarkData>> = {};
-    
-    data.forEach(item => {
-      if (!monthMap[item.month]) {
-        monthMap[item.month] = {};
+    // Sort by timestamp to show continuous flow
+    const sortedData = [...data].sort((a, b) => {
+      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return timeA - timeB;
+    });
+
+    // Group by timestamp (each benchmark run)
+    const timestampMap: Record<string, Record<string, MonthlyBenchmarkData>> = {};
+
+    sortedData.forEach(item => {
+      const key = item.timestamp || item.month;
+      if (!timestampMap[key]) {
+        timestampMap[key] = {};
       }
-      monthMap[item.month][item.gpuId] = item;
+      timestampMap[key][item.gpuId] = item;
     });
 
     // Convert to array format for Recharts
-    const months = Object.keys(monthMap).sort();
+    const timestamps = Object.keys(timestampMap).sort();
     const gpuIds = Array.from(new Set(data.map(d => d.gpuId))).sort();
 
-    return months.map(month => {
-      const entry: any = { month };
+    return timestamps.map(ts => {
+      const entry: any = {
+        timestamp: ts,
+        // Format display label
+        label: ts.includes('T')
+          ? new Date(ts).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+          : ts
+      };
+
       gpuIds.forEach(gpuId => {
-        const item = monthMap[month]?.[gpuId];
+        const item = timestampMap[ts]?.[gpuId];
         if (item) {
           const value = item.metrics[
             metric === 'utilization' ? 'utilization_avg' :
-            metric === 'memory' ? 'memory_used_avg' :
-            metric === 'temperature' ? 'temperature_avg' :
-            metric === 'power' ? 'power_consumption_avg' :
-            'benchmark_score'
+              metric === 'memory' ? 'memory_used_avg' :
+                metric === 'temperature' ? 'temperature_avg' :
+                  metric === 'power' ? 'power_consumption_avg' :
+                    'benchmark_score'
           ];
           entry[gpuId] = value ?? null;
         } else {
@@ -65,24 +88,25 @@ export default function MonthlyComparisonChart({ data, metric }: Props) {
   }, [data, metric]);
 
   const colors = [
-    '#3b82f6', '#ef4444', '#eab308', '#10b981', 
+    '#3b82f6', '#ef4444', '#eab308', '#10b981',
     '#8b5cf6', '#f97316', '#06b6d4', '#ec4899'
   ];
 
   const gpuIds = Array.from(new Set(data.map(d => d.gpuId))).sort();
 
   const config = {
-    utilization: { title: 'GPU Utilization', unit: '%', domain: [0, 100] as [number, number] },
-    memory: { title: 'Memory Usage', unit: ' GB', domain: ['auto', 'auto'] as const },
-    temperature: { title: 'Temperature', unit: '°C', domain: ['auto', 'auto'] as const },
-    power: { title: 'Power Consumption', unit: ' W', domain: ['auto', 'auto'] as const },
-    score: { title: 'Benchmark Score', unit: '', domain: ['auto', 'auto'] as const },
+    utilization: { title: 'GPU Utilization Over Time', unit: '%', domain: [0, 100] as [number, number] },
+    memory: { title: 'Memory Usage Over Time', unit: ' GB', domain: ['auto', 'auto'] as const },
+    temperature: { title: 'Temperature Over Time', unit: '°C', domain: ['auto', 'auto'] as const },
+    power: { title: 'Power Consumption Over Time', unit: ' W', domain: ['auto', 'auto'] as const },
+    score: { title: 'Benchmark Score Over Time', unit: '', domain: ['auto', 'auto'] as const },
   }[metric];
 
   if (chartData.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 border border-dashed border-gray-800 rounded-lg bg-gray-900/30 text-gray-500">
-        <p>No monthly comparison data available</p>
+      <div className="flex flex-col items-center justify-center h-64 border border-dashed border-gray-800 rounded-lg bg-gray-900/30 text-gray-500">
+        <p className="mb-2">No benchmark history available</p>
+        <p className="text-xs text-gray-600">Run a benchmark to start tracking performance over time</p>
       </div>
     );
   }
@@ -92,7 +116,9 @@ export default function MonthlyComparisonChart({ data, metric }: Props) {
       <div className="mb-4 flex items-center justify-between border-b border-gray-800 pb-2">
         <div>
           <h3 className="text-sm font-bold text-white tracking-wide">{config.title}</h3>
-          <p className="text-[10px] text-gray-500 uppercase mt-0.5">Unit: {config.unit.trim() || 'N/A'}</p>
+          <p className="text-[10px] text-gray-500 uppercase mt-0.5">
+            Showing {chartData.length} benchmark run{chartData.length !== 1 ? 's' : ''} • Unit: {config.unit.trim() || 'N/A'}
+          </p>
         </div>
         <div className="flex flex-wrap gap-3 justify-end">
           {gpuIds.slice(0, 6).map((gpuId, idx) => (
@@ -108,39 +134,44 @@ export default function MonthlyComparisonChart({ data, metric }: Props) {
           ))}
         </div>
       </div>
-      <div className="h-64 w-full">
+      <div className="h-80 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.3} />
-            <XAxis 
-              dataKey="month" 
+            <XAxis
+              dataKey="label"
               stroke="#525252"
               tick={{ fontSize: 10, fill: "#737373" }}
               tickLine={false}
               axisLine={false}
+              angle={-45}
+              textAnchor="end"
+              height={80}
+              interval="preserveStartEnd"
             />
-            <YAxis 
-              stroke="#525252" 
-              tick={{ fontSize: 10, fill: "#9ca3af" }} 
-              tickLine={false} 
+            <YAxis
+              stroke="#525252"
+              tick={{ fontSize: 10, fill: "#9ca3af" }}
+              tickLine={false}
               axisLine={false}
               domain={config.domain}
               width={50}
             />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: "#0f172a", 
-                borderColor: "#1e293b", 
-                borderRadius: "6px", 
-                fontSize: "12px", 
-                color: "#f1f5f9" 
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "#0f172a",
+                borderColor: "#1e293b",
+                borderRadius: "6px",
+                fontSize: "12px",
+                color: "#f1f5f9"
               }}
-              formatter={(value: number) => [
+              labelFormatter={(label) => `Time: ${label}`}
+              formatter={(value: number, name: string) => [
                 value !== null ? `${value.toFixed(1)}${config.unit}` : 'N/A',
-                ''
+                name.replace(/cloud-|gpu/gi, '').replace(/-/g, ' ')
               ]}
             />
-            <Legend 
+            <Legend
               wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }}
               iconType="line"
             />
@@ -151,9 +182,9 @@ export default function MonthlyComparisonChart({ data, metric }: Props) {
                 dataKey={gpuId}
                 stroke={colors[idx % colors.length]}
                 strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
-                connectNulls={false}
+                dot={{ r: 4, strokeWidth: 0 }}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+                connectNulls={true}
                 name={gpuId.replace(/cloud-|gpu/gi, '').replace(/-/g, ' ')}
               />
             ))}

@@ -1,0 +1,414 @@
+[
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 18,
+      "temperature_avg": 39,
+      "power_consumption_avg": 65.779,
+      "benchmark_score": 193
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 8,
+      "temperature_avg": 38,
+      "power_consumption_avg": 19.185,
+      "benchmark_score": 100
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 3.1,
+      "temperature_avg": 38,
+      "power_consumption_avg": 61.96999999999999,
+      "benchmark_score": 186
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 18,
+      "temperature_avg": 39,
+      "power_consumption_avg": 65.89500000000001,
+      "benchmark_score": 193
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 8,
+      "temperature_avg": 37.8,
+      "power_consumption_avg": 19.080000000000002,
+      "benchmark_score": 100
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 2.8,
+      "temperature_avg": 38,
+      "power_consumption_avg": 61.973,
+      "benchmark_score": 186
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 18,
+      "temperature_avg": 39,
+      "power_consumption_avg": 68.115,
+      "benchmark_score": 197
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 8,
+      "temperature_avg": 38.2,
+      "power_consumption_avg": 17.81,
+      "benchmark_score": 97
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 1,
+      "temperature_avg": 38,
+      "power_consumption_avg": 61.989,
+      "benchmark_score": 186
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-1",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 0,
+      "temperature_avg": 0,
+      "power_consumption_avg": 0,
+      "benchmark_score": 100
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 18,
+      "temperature_avg": 39,
+      "power_consumption_avg": 67.79777777777778,
+      "benchmark_score": 197
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 8,
+      "temperature_avg": 38,
+      "power_consumption_avg": 21.484,
+      "benchmark_score": 105
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 1,
+      "temperature_avg": 38,
+      "power_consumption_avg": 61.799,
+      "benchmark_score": 186
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-1",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 0,
+      "temperature_avg": 0,
+      "power_consumption_avg": 0,
+      "benchmark_score": 100
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 18,
+      "temperature_avg": 39,
+      "power_consumption_avg": 65.891,
+      "benchmark_score": 193
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 8,
+      "temperature_avg": 38,
+      "power_consumption_avg": 21.91,
+      "benchmark_score": 106
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 1,
+      "temperature_avg": 38,
+      "power_consumption_avg": 61.724000000000004,
+      "benchmark_score": 185
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-1",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 0,
+      "temperature_avg": 0,
+      "power_consumption_avg": 0,
+      "benchmark_score": 100
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 1,
+      "temperature_avg": 37,
+      "power_consumption_avg": 61.501,
+      "benchmark_score": 186
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 1,
+      "temperature_avg": 37,
+      "power_consumption_avg": 61.501,
+      "benchmark_score": 186
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 18,
+      "temperature_avg": 38.7,
+      "power_consumption_avg": 65.867,
+      "benchmark_score": 193
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 8,
+      "temperature_avg": 38,
+      "power_consumption_avg": 21.357000000000003,
+      "benchmark_score": 105
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 1,
+      "temperature_avg": 37,
+      "power_consumption_avg": 61.503,
+      "benchmark_score": 186
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 18,
+      "temperature_avg": 39,
+      "power_consumption_avg": 67.871,
+      "benchmark_score": 197
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 8,
+      "temperature_avg": 38,
+      "power_consumption_avg": 20.262000000000004,
+      "benchmark_score": 103
+    }
+  },
+  {
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 1,
+      "temperature_avg": 37,
+      "power_consumption_avg": 61.501,
+      "benchmark_score": 186
+    }
+  },
+  {
+    "timestamp": "2026-01-08T16:40:42.491Z",
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "gpuName": "NVIDIA A100 80GB PCIe",
+    "nodeName": "cloud-243",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 18,
+      "temperature_avg": 38,
+      "power_consumption_avg": 67.184,
+      "benchmark_score": 196
+    }
+  },
+  {
+    "timestamp": "2026-01-08T16:40:42.491Z",
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "gpuName": "Tesla T4",
+    "nodeName": "cloud-243",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 8,
+      "temperature_avg": 37.6,
+      "power_consumption_avg": 22.425000000000004,
+      "benchmark_score": 107
+    }
+  },
+  {
+    "timestamp": "2026-01-08T16:40:42.491Z",
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "gpuName": "NVIDIA H100 NVL",
+    "nodeName": "cloud-247",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 1,
+      "temperature_avg": 37,
+      "power_consumption_avg": 61.507999999999996,
+      "benchmark_score": 186
+    }
+  },
+  {
+    "timestamp": "2026-01-08T16:48:36.461Z",
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "gpuName": "NVIDIA A100 80GB PCIe",
+    "nodeName": "cloud-243",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 18,
+      "temperature_avg": 38,
+      "power_consumption_avg": 66.80600000000001,
+      "benchmark_score": 196
+    }
+  },
+  {
+    "timestamp": "2026-01-08T16:48:36.461Z",
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "gpuName": "Tesla T4",
+    "nodeName": "cloud-243",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 8,
+      "temperature_avg": 37.2,
+      "power_consumption_avg": 18.894,
+      "benchmark_score": 101
+    }
+  },
+  {
+    "timestamp": "2026-01-08T16:48:36.461Z",
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "gpuName": "NVIDIA H100 NVL",
+    "nodeName": "cloud-247",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 1,
+      "temperature_avg": 37,
+      "power_consumption_avg": 61.50599999999999,
+      "benchmark_score": 186
+    }
+  },
+  {
+    "timestamp": "2026-01-08T16:49:25.794Z",
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "gpuName": "NVIDIA A100 80GB PCIe",
+    "nodeName": "cloud-243",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 18,
+      "temperature_avg": 37.9,
+      "power_consumption_avg": 65.242,
+      "benchmark_score": 193
+    }
+  },
+  {
+    "timestamp": "2026-01-08T16:49:25.794Z",
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "gpuName": "Tesla T4",
+    "nodeName": "cloud-243",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 8,
+      "temperature_avg": 37.2,
+      "power_consumption_avg": 18.933000000000003,
+      "benchmark_score": 101
+    }
+  },
+  {
+    "timestamp": "2026-01-08T16:49:25.794Z",
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "gpuName": "NVIDIA H100 NVL",
+    "nodeName": "cloud-247",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 1,
+      "temperature_avg": 37,
+      "power_consumption_avg": 61.501999999999995,
+      "benchmark_score": 186
+    }
+  }
+]

@@ -1,48 +1,64 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { MonthlyBenchmarkData } from '@/components/benchmarks/MonthlyComparisonChart';
 import { CLUSTER_NODES, GPU_INVENTORY } from '@/lib/config';
+import fs from 'fs';
+import path from 'path';
 
-// Cache GPU list to avoid repeated SSH calls
-let cachedGpuList: Array<{ id: string; name: string }> | null = null;
-let cacheTimestamp = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+// Path to store benchmark history
+const BENCHMARK_DATA_DIR = path.join(process.cwd(), 'data', 'benchmark-history');
 
-function getGpuListFromCache(): Array<{ id: string; name: string }> {
-  const now = Date.now();
-  
-  // Return cached list if still valid
-  if (cachedGpuList && (now - cacheTimestamp < CACHE_DURATION)) {
-    return cachedGpuList;
-  }
+// Ensure data directory exists
+if (!fs.existsSync(BENCHMARK_DATA_DIR)) {
+  fs.mkdirSync(BENCHMARK_DATA_DIR, { recursive: true });
+}
 
-  // Build GPU list from config (faster than SSH)
-  const allGpus: Array<{ id: string; name: string }> = [];
-  
-  CLUSTER_NODES.filter(n => n.hasGpu).forEach(node => {
-    // Try to get GPU count from inventory, fallback to 2
-    const gpuCount = GPU_INVENTORY.nodes[node.name]?.cores_total 
-      ? Math.floor(GPU_INVENTORY.nodes[node.name].cores_total / 16) 
-      : 2;
-    
-    for (let i = 0; i < gpuCount; i++) {
-      allGpus.push({
-        id: `${node.name}-gpu-${i}`,
-        name: GPU_INVENTORY.nodes[node.name]?.gpu_name || GPU_INVENTORY.defaults.gpu_name,
-      });
+/**
+ * Save benchmark results to monthly file with timestamps
+ */
+export function saveBenchmarkResults(results: any[]) {
+  try {
+    const now = new Date();
+    const timestamp = now.toISOString();
+    const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const filePath = path.join(BENCHMARK_DATA_DIR, `${monthStr}.json`);
+
+    // Load existing data for this month
+    let monthlyData: any[] = [];
+    if (fs.existsSync(filePath)) {
+      const fileContent = fs.readFileSync(filePath, 'utf-8');
+      monthlyData = JSON.parse(fileContent);
     }
-  });
 
-  // Update cache
-  cachedGpuList = allGpus;
-  cacheTimestamp = now;
-  
-  return allGpus;
+    // Add new results with timestamp
+    results.forEach(result => {
+      if (result.status === 'completed') {
+        monthlyData.push({
+          timestamp,  // Add timestamp for continuous timeline
+          month: monthStr,
+          gpuId: result.gpuId,
+          gpuName: result.gpuName,
+          nodeName: result.nodeName,
+          metrics: {
+            utilization_avg: result.metrics.utilization_avg,
+            memory_used_avg: result.metrics.memory_used_avg,
+            temperature_avg: result.metrics.temperature_avg,
+            power_consumption_avg: result.metrics.power_consumption_avg,
+            benchmark_score: result.metrics.benchmark_score || 0,
+          },
+        });
+      }
+    });
+
+    // Save updated data
+    fs.writeFileSync(filePath, JSON.stringify(monthlyData, null, 2));
+    console.log(`✅ [Benchmark] Saved ${results.length} results to ${monthStr}.json at ${timestamp}`);
+  } catch (error: any) {
+    console.error('[Benchmark] Error saving results:', error.message);
+  }
 }
 
 /**
  * API endpoint to fetch monthly benchmark comparison data.
- * 
- * TODO: Connect to Pratham's implementation when ready
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -50,10 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Get GPU list from cache (fast, no SSH)
-    const allGpus = getGpuListFromCache();
-
-    // Generate last 6 months of data
+    // Generate last 6 months
     const months: string[] = [];
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
@@ -61,32 +74,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       months.push(monthStr);
     }
-    
-    // TODO: Fetch real monthly data from Pratham's implementation
-    // For now, return mock data with real GPU list
-    const mockData: MonthlyBenchmarkData[] = [];
-    
-    allGpus.forEach(gpu => {
-      months.forEach((month, monthIdx) => {
-        // Simulate slight degradation over time
-        const degradationFactor = 1 - (monthIdx * 0.02); // 2% degradation per month
-        
-        mockData.push({
-          month,
-          gpuId: gpu.id,
-          metrics: {
-            utilization_avg: (85 + Math.random() * 10) * degradationFactor,
-            memory_used_avg: (60 + Math.random() * 20) * degradationFactor * 1024,
-            temperature_avg: (65 + Math.random() * 10) + (monthIdx * 0.5), // Slight temp increase
-            power_consumption_avg: (250 + Math.random() * 50) * degradationFactor,
-            benchmark_score: (1000 + Math.random() * 200) * degradationFactor,
-          },
-        });
-      });
-    });
 
+    // Load data from files
+    const allData: MonthlyBenchmarkData[] = [];
+
+    for (const month of months) {
+      const filePath = path.join(BENCHMARK_DATA_DIR, `${month}.json`);
+
+      if (fs.existsSync(filePath)) {
+        try {
+          const fileContent = fs.readFileSync(filePath, 'utf-8');
+          const monthData: MonthlyBenchmarkData[] = JSON.parse(fileContent);
+          allData.push(...monthData);
+        } catch (error) {
+          console.error(`[Benchmark] Error reading ${month}.json:`, error);
+        }
+      }
+    }
+
+    // If no data exists, return empty array (not mock data)
     return res.status(200).json({
-      data: mockData,
+      data: allData,
     });
   } catch (error: any) {
     console.error('[Benchmark] Error fetching monthly data:', error);

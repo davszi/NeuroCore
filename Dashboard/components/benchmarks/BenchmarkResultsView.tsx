@@ -137,9 +137,8 @@ export default function BenchmarkResultsView({ results, monthlyData = [], isRunn
                 results.map((result, idx) => (
                   <tr
                     key={result.gpuId}
-                    className={`hover:bg-gray-800 transition-colors ${
-                      result.status === 'running' ? 'bg-yellow-900/10' : ''
-                    }`}
+                    className={`hover:bg-gray-800 transition-colors ${result.status === 'running' ? 'bg-yellow-900/10' : ''
+                      }`}
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
@@ -194,17 +193,16 @@ export default function BenchmarkResultsView({ results, monthlyData = [], isRunn
       {monthlyData.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-white">Monthly Performance Comparison</h3>
+            <h3 className="text-lg font-semibold text-white">Performance History Timeline</h3>
             <div className="flex gap-2 bg-gray-800 rounded-lg p-1">
               {(['utilization', 'memory', 'temperature', 'power', 'score'] as const).map((m) => (
                 <button
                   key={m}
                   onClick={() => setSelectedMetric(m)}
-                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
-                    selectedMetric === m
+                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${selectedMetric === m
                       ? 'bg-cyan-600 text-white'
                       : 'text-gray-400 hover:text-gray-200'
-                  }`}
+                    }`}
                 >
                   {m.charAt(0).toUpperCase() + m.slice(1)}
                 </button>

@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-01-05T11:46:05.227Z",
+  "runId": "comp_1767613565227",
+  "node": "cloud-247",
+  "gpuId": 0,
+  "gpuName": "NVIDIA H100 NVL",
+  "results": {
+    "with_jobs": {
+      "duration": 24.534
+    },
+    "without_jobs": {
+      "duration": 15.974
+    }
+  },
+  "performanceImpact": 34.890356240319555
+}
