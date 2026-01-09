@@ -7,6 +7,9 @@ from typing import Optional, Dict, Any
 import psutil
 import torch
 
+RUN_TIMESTAMP = time.strftime("%Y-%m-%d_%H-%M-%S")
+_PROCESS = psutil.Process(os.getpid())
+_PROCESS.cpu_percent()
 
 def _ensure_dir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
@@ -22,9 +25,14 @@ def monitor_run(
     """
     Log final metrics pentru un run (după train + eval).
     """
-    process = psutil.Process(os.getpid())
-    cpu_usage = process.cpu_percent()
-    ram_usage = process.memory_info().rss / (1024 ** 3)
+
+    cpu_usage = _PROCESS.cpu_percent()
+    ram_usage = _PROCESS.memory_info().rss / (1024 ** 3)
+
+
+    # process = psutil.Process(os.getpid())
+    # cpu_usage = process.cpu_percent()
+    # ram_usage = process.memory_info().rss / (1024 ** 3)
     gpu_mem = torch.cuda.memory_allocated() / (1024 ** 3) if torch.cuda.is_available() else 0
     disk_used = shutil.disk_usage("/").used / (1024 ** 3)
 
@@ -40,8 +48,10 @@ def monitor_run(
         "disk_used_GB": round(disk_used, 3)
     }
 
-    _ensure_dir(output_dir)
-    path = os.path.join(output_dir, "run_metrics.jsonl")
+    run_output_dir = os.path.join(output_dir, RUN_TIMESTAMP)
+    _ensure_dir(run_output_dir)
+    
+    path = os.path.join(run_output_dir, "run_metrics.jsonl")
     with open(path, "a") as f:
         f.write(json.dumps(record) + "\n")
         f.flush()
@@ -63,9 +73,13 @@ def monitor_step(
     """
     Log per-step metrics (chemat de callback-ul HF Trainer).
     """
-    process = psutil.Process(os.getpid())
-    cpu_usage = process.cpu_percent()
-    ram_usage = process.memory_info().rss / (1024 ** 3)
+
+    cpu_usage = _PROCESS.cpu_percent()
+    ram_usage = _PROCESS.memory_info().rss / (1024 ** 3)
+
+    # process = psutil.Process(os.getpid())
+    # cpu_usage = process.cpu_percent()
+    # ram_usage = process.memory_info().rss / (1024 ** 3)
     gpu_mem = torch.cuda.memory_allocated() / (1024 ** 3) if torch.cuda.is_available() else 0
 
     record = {
@@ -80,8 +94,10 @@ def monitor_step(
         "note": note
     }
 
-    _ensure_dir(output_dir)
-    path = os.path.join(output_dir, "step_metrics.jsonl")
+    run_output_dir = os.path.join(output_dir, RUN_TIMESTAMP)
+    _ensure_dir(run_output_dir)
+    
+    path = os.path.join(run_output_dir, "step_metrics.jsonl")
     with open(path, "a") as f:
         f.write(json.dumps(record) + "\n")
         f.flush()
