@@ -56,4 +56,17 @@ def merge_user_config(user_cfg: Dict[str, Any]) -> Dict[str, Any]:
     cfg = _build_config_from_dict(user_cfg)
     cfg["training"]["logging_steps"] = user_cfg.get("steps", 10)
     cfg["training"]["eval_steps"] = user_cfg.get("steps", 10)
+
+    if "batch_size" in user_cfg and user_cfg["batch_size"] is not None:
+        cfg["training"]["per_device_train_batch_size"] = int(user_cfg["batch_size"])
+
+    if "sequence_length" in user_cfg and user_cfg["sequence_length"] is not None:
+        seq_len = int(user_cfg["sequence_length"])
+        cfg["dataset"]["max_input_len"] = seq_len
+
+        # Summarization are și max_target_len. Alegi o regulă simplă:
+        # de ex. target = min(128, seq_len//4) sau păstrezi default dacă vrei.
+        if cfg["task"] == "summarization":
+            cfg["dataset"]["max_target_len"] = min(cfg["dataset"].get("max_target_len", 128), max(32, seq_len // 4))
+
     return cfg
