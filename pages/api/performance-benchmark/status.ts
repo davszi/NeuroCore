@@ -1,8 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { BenchmarkResult } from '@/components/benchmarks/BenchmarkResultsView';
 import { CLUSTER_NODES } from '@/lib/config';
 import { runCommand } from '@/lib/ssh';
 import { NodeConfig } from '@/types/cluster';
+import { BenchmarkResult } from '@/components/benchmarks/performance/BenchmarkResultsView';
 
 // Store benchmark results in memory (in production, use a database)
 const benchmarkResults: Map<string, BenchmarkResult[]> = new Map();

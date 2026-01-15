@@ -1,8 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { MonthlyBenchmarkData } from '@/components/benchmarks/MonthlyComparisonChart';
-import { CLUSTER_NODES, GPU_INVENTORY } from '@/lib/config';
 import fs from 'fs';
 import path from 'path';
+import { MonthlyBenchmarkData } from '@/components/benchmarks/performance/MonthlyComparisonChart';
 
 // Path to store benchmark history
 const BENCHMARK_DATA_DIR = path.join(process.cwd(), 'data', 'benchmark-history');

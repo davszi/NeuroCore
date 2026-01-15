@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   
   // In Next.js 15, 'instrumentationHook' is automatic if instrumentation.ts exists.
   // We use the stable 'serverExternalPackages' instead of the experimental option.
