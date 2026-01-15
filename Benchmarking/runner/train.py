@@ -81,9 +81,13 @@ def _wrap_with_qlora(model, task: str) -> Dict[str, Any]:
     )
 
     model = get_peft_model(model, lora_cfg)
+
+    if hasattr(model, "enable_input_require_grads"):
+        model.enable_input_require_grads()
+
     model.print_trainable_parameters()
 
-    return lora_cfg.to_dict()
+    return model, lora_cfg.to_dict()
 
 
 # ---------------- MAIN TRAINING PIPELINE -----------------
@@ -161,10 +165,7 @@ def run_training(final_cfg: Dict[str, Any]) -> Dict[str, Any]:
     # 1) Apply ATTENTION implementation (HOOKS, SDPA, Flash, etc.)
     model = apply_attention_implementation(model, attn_impl)
 
-    # 2) Prepare for K-bit training
-    print("[train] Preparing model for k-bit training…")
-    model = prepare_model_for_kbit_training(model)
-
+    
     model_type = getattr(getattr(model, "config", None), "model_type", "").lower()
     if task == "summarization" and model_type == "bart":
         # 1) checkpointing + cache incompatibile
@@ -177,13 +178,28 @@ def run_training(final_cfg: Dict[str, Any]) -> Dict[str, Any]:
             emb = model.get_input_embeddings()
             if emb is not None:
                 emb.weight.requires_grad_(True)
+        if hasattr(model, "gradient_checkpointing_disable"):
+            model.gradient_checkpointing_disable()
+        # unele versiuni au flag direct in config
+        if hasattr(model.config, "gradient_checkpointing"):
+            model.config.gradient_checkpointing = False 
+
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print("[debug] trainable params:", trainable_params)
 
 
+    use_gc = True
+    model_type = getattr(getattr(model, "config", None), "model_type", "").lower()
+    if task == "summarization" and model_type == "bart":
+        use_gc = False
+        model.config.use_cache = False
+
+    print("[train] Preparing model for k-bit training…")
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=use_gc)
+
     # 3) Apply LoRA adapters LAST
     print("[train] Applying QLoRA adapters…")
-    lora_info = _wrap_with_qlora(model, task)
+    model, lora_info = _wrap_with_qlora(model, task)
 
     for attr in ["is_loaded_in_4bit", "is_quantized"]:
         if hasattr(model, attr):
@@ -222,6 +238,11 @@ def run_training(final_cfg: Dict[str, Any]) -> Dict[str, Any]:
     # 10) TRAINER + CALLBACK DE MONITORIZARE
     monitor_dir = training_cfg.get("monitor_output_dir", "monitor_results")
     callback = CustomMonitorCallback(output_dir=monitor_dir)
+
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print("TRAINABLE PARAMS USED BY TRAINER:", trainable_params)
+
+    print("grad_ckpt enabled?", getattr(model, "is_gradient_checkpointing", None))
 
     trainer = Trainer(
         model=model,
