@@ -8,6 +8,7 @@ const navItems = [
   { name: 'Resources', href: '/' },
   { name: 'Jobs', href: '/jobs' },
   { name: 'Benchmarks', href: '/benchmarks' },
+  { name: 'Settings', href: '/settings' },
 ];
 
 export default function Navbar() {

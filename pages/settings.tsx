@@ -1,3 +1,4 @@
+import { CLUSTER_NODES } from '@/lib/config';
 import React, { useState, useEffect } from 'react';
 
 export default function SettingsPage() {
@@ -88,8 +89,11 @@ export default function SettingsPage() {
                     value={creds.host}
                     onChange={e => setCreds({...creds, host: e.target.value})}
                   >
-                    <option value="cloud-243.rz.tu-clausthal.de">cloud-243 (2 GPUs)</option>
-                    <option value="cloud-247.rz.tu-clausthal.de">cloud-247 (1 GPU)</option>
+                    {CLUSTER_NODES.map(node => (
+                        <option key={node.name} value={node.host}>
+                            {node.name} ({node.hasGpu ? 'GPU Node' : 'CPU Node'})
+                        </option>
+                    ))}
                   </select>
                 </div>
                 <div>

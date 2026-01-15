@@ -210,18 +210,18 @@ export default function BenchmarksPage() {
               Cluster Performance
             </button>
             <button
-              onClick={() => setActiveTab("ml")}
-              className={`px-5 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === "ml" ? "bg-cyan-900/30 text-cyan-100 shadow-sm" : "text-gray-400 hover:text-gray-200"
-                }`}
-            >
-              ML Benchmarks
-            </button>
-            <button
               onClick={() => setActiveTab("perf-benchmark")}
               className={`px-5 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === "perf-benchmark" ? "bg-red-900/30 text-red-100 shadow-sm" : "text-gray-400 hover:text-gray-200"
                 }`}
             >
               Performance Benchmark
+            </button>
+            <button
+              onClick={() => setActiveTab("ml")}
+              className={`px-5 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === "ml" ? "bg-cyan-900/30 text-cyan-100 shadow-sm" : "text-gray-400 hover:text-gray-200"
+                }`}
+            >
+              ML Benchmarks
             </button>
           </div>
 
