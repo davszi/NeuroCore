@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const runId = `run_${ts}`;
   const { remotePath } = getSettings();
 
-  const APP_ROOT = remotePath || '/scratch/mw86/neurocore-app';
+  const APP_ROOT = remotePath;
   const CACHE_ROOT = `${APP_ROOT}/caches`;
   const OUTPUT_ROOT = `${APP_ROOT}/outputs`;
   const LOGS_ROOT = `${APP_ROOT}/logs`;
