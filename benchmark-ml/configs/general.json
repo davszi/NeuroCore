@@ -1,0 +1,6 @@
+{
+  "device": "cuda",
+  "bf16_fallback_to_fp16": true,
+  "base_output_dir": "outputs",
+  "cache_dir": "hf_cache"
+}

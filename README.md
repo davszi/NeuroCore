@@ -1,71 +1,123 @@
-# NeuroCore
-- Updated Dockerfile to include directories for future data and logs.
-- Mount host Directories to docker-compose.yml and added the feature of the health checks.
-- Added .gitkeep file to the Folder "data" to keep it in repos.
-- Added .gitkeep file to the Folder "logs" to keep it in repos.
+# NeuroCore Dashboard (Workstream B)
 
-# Full command Reference -- DockerFile & Docker compose File
+This is the official front-end dashboard for the NeuroCore GenAI cluster project. It provides a read-only interface to monitor cluster nodes, jobs, and resource utilization.
 
-# Docker Setup & Image Build commands
-     
-| Command                        | Description                                       |
-| ------------------------------ | ------------------------------------------------- |
-| `docker ps`                    | Lists all **running containers**.                 |
-| `docker ps -a`                 | Lists **all containers**, including stopped ones. |
-| `docker rm node1 node2 node3`  | Removes the old test containers.                  |
-| `docker images`                | Lists all available Docker images.                |
-| `docker rmi genai-node:latest` | Deletes the previous image `genai-node:latest`.   |
+**Built with:**
+* **Framework:** Next.js (v15) using the Pages Router.
+* **Language:** TypeScript.
+* **Styling:** Tailwind CSS (v4).
+* **Data Fetching:** SWR for live data polling and caching.
+* **State Management:** React Context.
+* **Icons:** `react-icons`.
 
+---
 
-# To build the image ==> "genai-node:latest" ==> using the DockerFile
-- From this image we create the nodes manually or automatically using the "Docker compose file".
+## ✨ Features
 
-| Command                                  | Description                                                                                           |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `docker build -t genai-node:latest .`    | Builds a new image from the `Dockerfile` in the current directory and tags it as `genai-node:latest`. |
+* **Live Data Connection:** Connects to a local simulation environment (Workstream A) via Next.js API routes (`/api/cluster-state` and `/api/jobs`).
+* **Auto-Refreshing:** Uses SWR to fetch updated cluster state and job information every 5 seconds.
+* **Fallback Mechanism:** If the simulation environment is not running or the API fails, the dashboard gracefully falls back to displaying static mock data defined in `/context/ClusterContext.tsx`.
+* **Responsive Design:** The UI adapts to different screen sizes, including a mobile-friendly navigation menu.
+* **Current Components:**
+    * **Dashboard Page:** Shows an overview, including live GPU Node Cards.
+    * **Jobs Page:** Displays a table of active simulated jobs fetched from the simulation.
+    * **Monitoring Page:** Provides a detailed view of all GPU Node Cards.
+    * **Logs Page:** (Placeholder for future development).
 
+---
 
-# Network & Compose
-- It must be executed inside the folder that includes the file: docker-compose.yaml
+## 💻 Running the Dashboard (Workstream B - UI Only)
 
-| Command                | Description                                                                                  |
-| ---------------------- | -------------------------------------------------------------------------------------------- |
-| `docker network ls`    | Lists all existing Docker networks (including `cluster-net`).                                |
-| `docker compose up -d` | Starts all services defined in `docker-compose.yaml` in detached mode (creates node1–node3). |
-| `docker compose down`  | Stops and removes the containers created by the compose file.                                |
+Follow these instructions to run *just* the Next.js dashboard application. It will attempt to connect to the simulation API, but will fall back to mock data if the simulation isn't running.
 
-# Container Access & Verification
-- The first command runs in CMD, then the rest inside the container itself.
-  
-| Command                                                            | Description                                                                              |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `docker run -it --rm genai-node:latest bash`                       | Starts a temporary container (for testing) interactively. (`--rm` removes it after exit) |
-| `whoami`                                                           | Displays the active user (expected `cluster`).                                           |
-| `ls -ld /opt/neurocore /neurocore /neurocore/data /neurocore/logs` | Verifies directory creation and permissions.                                             |
-| `touch /neurocore/data/test.txt`                                   | Creates an empty test file in `/data`.                                                   |
-| `echo "ok" > /neurocore/logs/test.log`                             | Writes sample content in `/logs`.                                                        |
-| `python3 --version`                                                | Confirms Python installation.                                                            |
-| `pip3 --version`                                                   | Confirms pip installation.                                                               |
-| `tmux -V`                                                          | Confirms tmux installation.                                                              |
+### Prerequisites
 
-# SSH Access
-- Access the nodes remotely from your local computer.
+* [Node.js](https://nodejs.org/) (Version 20.x or later recommended).
 
-| Command                         | Description                                  |
-| ------------------------------- | -------------------------------------------- |
-| `ssh cluster@localhost -p 2221` | Connects to **node1** (password: `cluster`). |
-| `ssh cluster@localhost -p 2222` | Connects to **node2** (password: `cluster`). |
-| `ssh cluster@localhost -p 2223` | Connects to **node3** (password: `cluster`). |
+### Installation & Running
 
-# Inter-Node Communication
-- Execute these commands inside each node after connecting via SSH.
+1.  **Clone the repository:**
+    ```bash
+    git clone [https://github.com/davszi/NeuroCore.git](https://github.com/davszi/NeuroCore.git)
+    cd NeuroCore
+    ```
 
-| Command           | Description                                          |
-| ----------------- | ---------------------------------------------------- |
-| `ping -c 3 node2` | From node1 → checks connection to node2.             |
-| `ping -c 3 node3` | From node1 → checks connection to node3.             |
-| `ping -c 3 node1` | From node2 or node3 → verifies reverse connectivity. |
+2.  **Navigate to the Dashboard directory:**
+    ```bash
+    cd Dashboard
+    ```
 
+3.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
 
+4.  **Run the development server:**
+    * Uses the stable `next dev` server.
+    ```bash
+    npm run dev
+    ```
 
+5.  **Open your browser:**
+    * Navigate to [http://localhost:3000](http://localhost:3000). You will likely see a "Connection Error" message initially, indicating it's using fallback data.
 
+---
+---
+
+## 🐳 Running the Full Simulation (Workstream A + B)
+
+Follow these instructions to run the **complete system**: the Docker-based cluster simulation (Workstream A) and the Dashboard UI (Workstream B) connected to it.
+
+### Prerequisites
+
+* [Node.js](https://nodejs.org/) (Version 20.x or later recommended).
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/) **installed and running**.
+
+### Running the System (Two Terminals Required)
+
+You need **two separate terminal windows** open in your `NeuroCore` project directory.
+
+#### Terminal 1: Start the Simulation (Workstream A)
+
+1.  **Navigate to the `Simulation_Env` directory:**
+    ```bash
+    cd Simulation_Env
+    ```
+2.  **Build and start the Docker containers:**
+    * The `--build` flag is needed the first time or after code changes.
+    ```bash
+    docker-compose up --build
+    ```
+3.  **Wait for the logs:** You will see output as the containers start. Wait until you see repeating logs from the `observer-1` service, confirming it's polling for data (e.g., `Successfully wrote 4 jobs...`).
+4.  **Keep this terminal running.**
+
+#### Terminal 2: Start the Dashboard (Workstream B)
+
+1.  **Navigate to the `Dashboard` directory:**
+    * Make sure you are in the correct directory for this terminal.
+    ```bash
+    cd ../Dashboard
+    ```
+2.  **Install dependencies (if you haven't already):**
+    ```bash
+    npm install
+    ```
+3.  **Run the development server:**
+    ```bash
+    npm run dev
+    ```
+
+#### View the Live Dashboard
+
+1.  **Open your browser:**
+    * Navigate to [http://localhost:3000](http://localhost:3000).
+2.  **Verify Connection:** The dashboard should now show a **"Live Connection"** status, and the displayed metrics and jobs will be coming directly from your running Docker simulation, updating every 5 seconds.
+
+### Stopping the System
+
+1.  **Stop the Dashboard:** Press `Ctrl + C` in Terminal 2.
+2.  **Stop the Simulation:** Press `Ctrl + C` in Terminal 1.
+3.  **Clean up Docker containers:** Run this command in Terminal 1 (from the `Simulation_Env` directory):
+    ```bash
+    docker-compose down
+    ```

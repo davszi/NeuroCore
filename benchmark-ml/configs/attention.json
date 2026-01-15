@@ -1,0 +1,5 @@
+{
+  "sdpa": { "impl": "scaled_dot_product_attention", "dtype": "fp32" },
+  "flash": { "impl": "flash_attention_2", "dtype": "bf16" },
+  "sequential": { "impl": "sequential_window", "dtype": "fp32" }
+}
