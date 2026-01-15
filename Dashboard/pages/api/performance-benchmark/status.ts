@@ -1,12 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { BenchmarkResult } from '@/components/benchmarks/BenchmarkResultsView';
-import { CLUSTER_NODES, GPU_INVENTORY } from '@/lib/config';
+import { CLUSTER_NODES } from '@/lib/config';
 import { runCommand } from '@/lib/ssh';
 import { NodeConfig } from '@/types/cluster';
 
 // Store benchmark results in memory (in production, use a database)
 const benchmarkResults: Map<string, BenchmarkResult[]> = new Map();
-const benchmarkMetrics: Map<string, any> = new Map();
 
 /**
  * Run actual GPU benchmark on a specific GPU
@@ -22,7 +21,6 @@ async function runGpuBenchmark(
 
   try {
     // Run GPU stress test for 30 seconds using nvidia-smi
-    // This will max out the GPU to get accurate performance metrics
     const benchmarkCmd = `
       CUDA_VISIBLE_DEVICES=${gpuIndex} timeout 30s python3 -c "
 import torch
@@ -158,10 +156,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const activeBenchmark = (global as any).activeBenchmark;
 
     if (activeBenchmark && activeBenchmark.benchmarkId === benchmarkId) {
+
+      // Check for initialization status
+      if (activeBenchmark.status === 'initializing') {
+        return res.status(200).json({
+          benchmarkId,
+          isRunning: true,
+          status: 'initializing',
+          logs: activeBenchmark.logs || [],
+          results: []
+        });
+      }
+
+      if (activeBenchmark.status === 'failed') {
+        return res.status(200).json({
+          benchmarkId,
+          isRunning: false,
+          status: 'failed',
+          error: activeBenchmark.error,
+          logs: activeBenchmark.logs || [],
+          results: []
+        });
+      }
+
       // Get or initialize results for this benchmark
       let results = benchmarkResults.get(benchmarkId);
 
       if (!results) {
+        // If status is 'running' but no results initialized yet, start the background process
+        if (!activeBenchmark.gpus || activeBenchmark.gpus.length === 0) {
+          // Should happen if initialization detected no GPUs but didn't fail?
+          return res.status(200).json({ benchmarkId, isRunning: false, results: [], error: 'No GPUs to benchmark' });
+        }
+
         results = [];
         benchmarkResults.set(benchmarkId, results);
 
@@ -193,6 +220,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
           // Mark benchmark as complete
           activeBenchmark.isRunning = false;
+          activeBenchmark.status = 'completed';
           console.log(`✅ [Benchmark] Benchmark ${benchmarkId} completed`);
 
           // Save results to monthly file
@@ -246,6 +274,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         isRunning,
         currentGpu,
         results: allResults,
+        status: isRunning ? 'running' : 'completed',
+        logs: activeBenchmark.logs || []
       });
     }
 
@@ -255,10 +285,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       isRunning: false,
       currentGpu: null,
       results: benchmarkResults.get(benchmarkId) || [],
+      status: 'unknown'
     });
   } catch (error: any) {
     console.error('[Benchmark] Error fetching status:', error);
     return res.status(500).json({ error: `Failed to fetch benchmark status: ${error.message}` });
   }
 }
-

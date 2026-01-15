@@ -18,9 +18,9 @@ import RuntimePerEpochChart from "../components/benchmarks/RuntimePerEpochChart"
 import MLBenchmarkChart from "../components/benchmarks/MLBenchmarkChart";
 import RunConfigurationsTable from "../components/benchmarks/RunConfigurationsTable";
 import NewRunModal from "@/components/benchmarks/NewRunModal";
-import PerformanceBenchmarkModal from "@/components/benchmarks/PerformanceBenchmarkModal";
-import BenchmarkResultsView, { BenchmarkResult } from "@/components/benchmarks/BenchmarkResultsView";
-import { MonthlyBenchmarkData } from "@/components/benchmarks/MonthlyComparisonChart";
+import PerformanceBenchmarkModal from "@/components/benchmarks/performance/PerformanceBenchmarkModal";
+import BenchmarkResultsView, { BenchmarkResult } from "@/components/benchmarks/performance/BenchmarkResultsView";
+import { MonthlyBenchmarkData } from "@/components/benchmarks/performance/MonthlyComparisonChart";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -89,14 +89,14 @@ export default function BenchmarksPage() {
   // Data Fetching
   const { data: snapshots = [], isLoading: isHistoryLoading } = useSWR<ClusterState[]>("/api/node-history", fetcher, { refreshInterval: 60000 });
   const { data: attentionMetrics, isLoading: isMlLoading } = useSWR<AttentionMetricsResponse>("/api/attention-metrics", fetcher);
-  
+
   // Performance Benchmark Status Polling
   const { data: benchmarkStatus } = useSWR(
     currentBenchmarkId ? `/api/performance-benchmark/status?benchmarkId=${currentBenchmarkId}` : null,
     fetcher,
     { refreshInterval: 2000 } // Poll every 2 seconds when benchmark is running
   );
-  
+
   // Monthly Benchmark Data
   const { data: monthlyBenchmarkData } = useSWR<{ data: MonthlyBenchmarkData[] }>(
     "/api/performance-benchmark/monthly",
@@ -194,7 +194,7 @@ export default function BenchmarksPage() {
   const handleStartPerformanceBenchmark = async (password: string) => {
     setPerfBenchmarkStarting(true);
     setPerfBenchmarkError(undefined);
-    
+
     try {
       const res = await fetch('/api/performance-benchmark/start', {
         method: 'POST',
@@ -271,8 +271,8 @@ export default function BenchmarksPage() {
             {activeTab === "ml"
               ? "Deep learning training efficiency and loss analysis."
               : activeTab === "perf-benchmark"
-              ? "Monthly GPU performance comparison to track degradation over time."
-              : "Real-time and historical overview of GPU utilization, memory consumption, and thermal status."}
+                ? "Monthly GPU performance comparison to track degradation over time."
+                : "Real-time and historical overview of GPU utilization, memory consumption, and thermal status."}
           </p>
         </div>
 
@@ -419,6 +419,9 @@ export default function BenchmarksPage() {
               monthlyData={monthlyData}
               isRunning={benchmarkStatus?.isRunning || false}
               currentGpu={benchmarkStatus?.currentGpu}
+              status={benchmarkStatus?.status}
+              logs={benchmarkStatus?.logs}
+              onRetry={() => setPerfBenchmarkModalOpen(true)}
             />
           </div>
         )}
@@ -642,12 +645,44 @@ function NodeWiseView({ nodes, range }: { nodes: NodeData[]; range: string }) {
 function MLBenchmarksView({ attentionMetrics }: { attentionMetrics: AttentionMetricsResponse }) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1"><RunConfigurationsTable /></div>
-        <div className="lg:col-span-2">
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 h-full shadow-sm">
-            <h3 className="text-sm font-semibold text-white mb-4">Training Loss Comparison</h3>
-            <div className="h-64">
+      <div className="flex flex-col gap-6">
+
+        {/* Row 1: Configuration & Insight (Side-by-Side to save vertical space but use width) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+          {/* Config Table */}
+          <div className="h-full">
+            <RunConfigurationsTable />
+          </div>
+
+          {/* Insight Panel - Styled to match height */}
+          <div className="bg-blue-900/10 border border-blue-500/20 rounded-lg p-6 flex flex-col justify-center h-full">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-blue-500/10 rounded-full shrink-0">
+                <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="text-blue-300 font-bold mb-2">Performance Insight</h4>
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  Both Flash Attention and SDPA consume comparable memory, but Flash Attention demonstrates superior runtime efficiency at longer sequence lengths. Speed gains are primarily algorithmic.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Main Loss Chart (Full Width for Clarity) */}
+        <div className="w-full">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <span className="w-2 h-6 bg-cyan-500 rounded-sm"></span>
+                Training Loss Comparison
+              </h3>
+              <span className="text-xs text-gray-500 font-mono">Live Metrics</span>
+            </div>
+            <div className="h-72 w-full">
               <MLBenchmarkChart
                 baselineData={(attentionMetrics.sdpa?.data || []).map((d: MetricEntry) => ({ step: d.step, loss: d.loss || 0 }))}
                 flashData={(attentionMetrics.flash?.data || []).map((d: MetricEntry) => ({ step: d.step, loss: d.loss || 0 }))}
@@ -655,38 +690,40 @@ function MLBenchmarksView({ attentionMetrics }: { attentionMetrics: AttentionMet
             </div>
           </div>
         </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-white mb-4">GPU Memory Usage</h3>
-          <div className="h-64"><GpuMemoryBarChart sdpaData={attentionMetrics.sdpa?.data || []} flashData={attentionMetrics.flash?.data || []} /></div>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-white mb-4">RAM Usage</h3>
-          <div className="h-64"><RamUsageBarChart sdpaData={attentionMetrics.sdpa?.data || []} flashData={attentionMetrics.flash?.data || []} /></div>
-        </div>
-      </div>
-      <div className="bg-blue-900/10 border border-blue-500/20 rounded-lg p-4 flex items-center gap-4">
-        <div className="p-2 bg-blue-500/10 rounded-full">
-          <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <div>
-          <p className="text-gray-300 text-sm">
-            <strong className="text-blue-300">Observation: </strong>
-            Both Flash Attention and SDPA consume comparable memory. Speed gains are algorithmic.
-          </p>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-white mb-4">Perplexity Evolution</h3>
-          <div className="h-64"><PerplexityChart sdpaData={attentionMetrics.sdpa?.data || []} flashData={attentionMetrics.flash?.data || []} /></div>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-white mb-2">Runtime per Epoch</h3>
-          <div className="h-64"><RuntimePerEpochChart sdpaRuntime={attentionMetrics.sdpa?.runtimePerEpoch || []} flashRuntime={attentionMetrics.flash?.runtimePerEpoch || []} /></div>
+
+        {/* Row 3: Detailed Metrics Grid (2x2) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-gray-900/60 backdrop-blur-sm border border-gray-800 rounded-xl p-6 shadow-xl hover:border-gray-700 transition-colors">
+            <h3 className="text-sm font-bold text-gray-200 mb-6 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
+              GPU Memory Usage
+            </h3>
+            <div className="min-h-[300px]"><GpuMemoryBarChart sdpaData={attentionMetrics.sdpa?.data || []} flashData={attentionMetrics.flash?.data || []} /></div>
+          </div>
+
+          <div className="bg-gray-900/60 backdrop-blur-sm border border-gray-800 rounded-xl p-6 shadow-xl hover:border-gray-700 transition-colors">
+            <h3 className="text-sm font-bold text-gray-200 mb-6 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-purple-400"></div>
+              RAM Usage
+            </h3>
+            <div className="min-h-[300px]"><RamUsageBarChart sdpaData={attentionMetrics.sdpa?.data || []} flashData={attentionMetrics.flash?.data || []} /></div>
+          </div>
+
+          <div className="bg-gray-900/60 backdrop-blur-sm border border-gray-800 rounded-xl p-6 shadow-xl hover:border-gray-700 transition-colors">
+            <h3 className="text-sm font-bold text-gray-200 mb-6 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-yellow-400"></div>
+              Perplexity Evolution
+            </h3>
+            <div className="h-[250px] w-full"><PerplexityChart sdpaData={attentionMetrics.sdpa?.data || []} flashData={attentionMetrics.flash?.data || []} /></div>
+          </div>
+
+          <div className="bg-gray-900/60 backdrop-blur-sm border border-gray-800 rounded-xl p-6 shadow-xl hover:border-gray-700 transition-colors">
+            <h3 className="text-sm font-bold text-gray-200 mb-2 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
+              Runtime per Epoch
+            </h3>
+            <div className="h-[250px] w-full"><RuntimePerEpochChart sdpaRuntime={attentionMetrics.sdpa?.runtimePerEpoch || []} flashRuntime={attentionMetrics.flash?.runtimePerEpoch || []} /></div>
+          </div>
         </div>
       </div>
     </div>

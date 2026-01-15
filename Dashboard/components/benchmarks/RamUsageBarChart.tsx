@@ -12,7 +12,7 @@ export default function RamUsageBarChart({ sdpaData, flashData }: Props) {
   const sdpaAvg = sdpaData.length > 0
     ? sdpaData.reduce((sum, d) => sum + (d.ram_usage_GB || 0), 0) / sdpaData.length
     : 0;
-  
+
   const flashAvg = flashData.length > 0
     ? flashData.reduce((sum, d) => sum + (d.ram_usage_GB || 0), 0) / flashData.length
     : 0;
@@ -38,25 +38,25 @@ export default function RamUsageBarChart({ sdpaData, flashData }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="h-48">
+      <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={chartData}
             layout="vertical"
-            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            margin={{ top: 5, right: 30, left: 30, bottom: 5 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#4B5563" />
-            <XAxis 
-              type="number" 
+            <XAxis
+              type="number"
               domain={[0, (dataMax: number) => Math.max(1, dataMax * 1.2)]}
               stroke="#9CA3AF"
               tickFormatter={(value) => `${value.toFixed(2)} GB`}
             />
-            <YAxis 
-              type="category" 
-              dataKey="name" 
+            <YAxis
+              type="category"
+              dataKey="name"
               stroke="#9CA3AF"
-              width={120}
+              width={140}
             />
             <Tooltip
               contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #4B5563' }}
@@ -86,7 +86,7 @@ export default function RamUsageBarChart({ sdpaData, flashData }: Props) {
             <div className="text-xs text-gray-400">{sdpaPercentage.toFixed(2)}% of total</div>
           </div>
         </div>
-        
+
         <div className="flex justify-between items-center p-3 bg-gray-800 rounded-lg border border-gray-700">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-green-400"></div>
@@ -98,22 +98,20 @@ export default function RamUsageBarChart({ sdpaData, flashData }: Props) {
           </div>
         </div>
 
-        <div className={`flex justify-between items-center p-3 rounded-lg border ${
-          difference === 0 
-            ? 'bg-gray-800 border-gray-700' 
-            : difference > 0 
-            ? 'bg-green-900/20 border-green-700' 
+        <div className={`flex justify-between items-center p-3 rounded-lg border ${difference === 0
+          ? 'bg-gray-800 border-gray-700'
+          : difference > 0
+            ? 'bg-green-900/20 border-green-700'
             : 'bg-red-900/20 border-red-700'
-        }`}>
+          }`}>
           <span className="text-sm font-medium text-gray-300">Difference</span>
           <div className="text-right">
-            <span className={`text-sm font-semibold ${
-              difference === 0 
-                ? 'text-gray-400' 
-                : difference > 0 
-                ? 'text-green-400' 
+            <span className={`text-sm font-semibold ${difference === 0
+              ? 'text-gray-400'
+              : difference > 0
+                ? 'text-green-400'
                 : 'text-red-400'
-            }`}>
+              }`}>
               {difference > 0 ? '+' : ''}{difference.toFixed(2)} GB
             </span>
             {difference !== 0 && (
