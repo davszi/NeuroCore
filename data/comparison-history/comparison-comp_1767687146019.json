@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-01-06T08:12:26.019Z",
+  "runId": "comp_1767687146019",
+  "node": "cloud-243",
+  "gpuId": 1,
+  "gpuName": "Tesla T4",
+  "results": {
+    "with_jobs": {
+      "duration": 23.331
+    },
+    "without_jobs": {
+      "duration": 18.395
+    }
+  },
+  "performanceImpact": 21.156401354421156
+}

@@ -1,7 +1,8 @@
+import { NodeSSH } from 'node-ssh';
 import { runCommand } from './ssh';
 import { NodeConfig, GpuNode, LoginNode, Job, Gpu, SlurmPartition, StorageVolume, UserStorage, GpuInventory } from '@/types/cluster';
 
-export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInventory) {
+export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInventory, ssh?: NodeSSH) {
   const DELIMITER = "---SECTION---";
 
   const cmd = [
@@ -16,7 +17,7 @@ export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInven
     `who | awk '{print $1}' | sort | uniq`
   ].join(';');
 
-  const rawOutput = await runCommand(node, cmd);
+  const rawOutput = await runCommand(node, cmd, 43000, ssh);
   if (!rawOutput) return null;
 
   const sections = rawOutput.split(DELIMITER).map(s => s.trim());
@@ -91,11 +92,11 @@ export async function fetchNodeHardware(node: NodeConfig, gpuInventory: GpuInven
   }
 }
 
-export async function fetchJobsFromNode(node: NodeConfig): Promise<Job[]> {
+export async function fetchJobsFromNode(node: NodeConfig, ssh?: NodeSSH): Promise<Job[]> {
   const records: Job[] = [];
 
   const JOB_CMD_GPU = `nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory --format=csv,noheader,nounits || true`;
-  const gpuOutput = await runCommand(node, JOB_CMD_GPU);
+  const gpuOutput = await runCommand(node, JOB_CMD_GPU, 43000, ssh);
 
   if (gpuOutput) {
     gpuOutput.trim().split('\n').forEach((line) => {
@@ -119,7 +120,7 @@ export async function fetchJobsFromNode(node: NodeConfig): Promise<Job[]> {
   }
 
   const JOB_CMD_CPU = `ps -eo pid,user,%cpu,comm --sort=-%cpu | head -n 20`;
-  const cpuOutput = await runCommand(node, JOB_CMD_CPU);
+  const cpuOutput = await runCommand(node, JOB_CMD_CPU, 43000, ssh);
 
   if (cpuOutput) {
     cpuOutput.trim().split('\n').slice(1).forEach((line) => {
@@ -142,9 +143,9 @@ export async function fetchJobsFromNode(node: NodeConfig): Promise<Job[]> {
   return records;
 }
 
-export async function fetchClusterStats(node: NodeConfig) {
+export async function fetchClusterStats(node: NodeConfig, ssh?: NodeSSH) {
   const SLURM_CMD = `sinfo -o "%.12P %.5C %.5a %.5I %.10m %.6G" --noheader || true`;
-  const slurmOutput = await runCommand(node, SLURM_CMD);
+  const slurmOutput = await runCommand(node, SLURM_CMD, 43000, ssh);
   const partitions: SlurmPartition[] = [];
 
   if (slurmOutput && slurmOutput.trim()) {
@@ -182,7 +183,7 @@ export async function fetchClusterStats(node: NodeConfig) {
   }
 
   const STORAGE_CMD = "df -hT | grep -E 'ceph|nfs|/scratch' || true";
-  const storageOutput = await runCommand(node, STORAGE_CMD);
+  const storageOutput = await runCommand(node, STORAGE_CMD, 43000, ssh);
   const volumes: StorageVolume[] = [];
 
   const parseToTib = (str: string) => {
@@ -208,7 +209,7 @@ export async function fetchClusterStats(node: NodeConfig) {
   return { partitions, volumes };
 }
 
-export async function fetchUserStorage(node: NodeConfig, targetDir: string): Promise<UserStorage[]> {
+export async function fetchUserStorage(node: NodeConfig, targetDir: string, ssh?: NodeSSH): Promise<UserStorage[]> {
   console.log(`[Storage] Fetching ${targetDir}...`);
 
   const safeTargetDir = targetDir.replace(/["'$`\\]/g, '');
@@ -216,7 +217,7 @@ export async function fetchUserStorage(node: NodeConfig, targetDir: string): Pro
   const CMD = `bash -c 'echo "["; first=1; for dir in ${safeTargetDir}/*; do [ -d "$dir" ] || continue; user=$(basename "$dir"); used=$(du -sk "$dir" 2>/dev/null | awk "{print \\$1}"); [ -z "$used" ] && used=0; file_count=$(find "$dir" -maxdepth 3 -type f 2>/dev/null | wc -l); [ $first -eq 0 ] && echo ","; first=0; echo "{ \\"username\\": \\"$user\\", \\"used_kb\\": $used, \\"files\\": $file_count }"; done; echo "]"'`;
 
   try {
-    const output = await runCommand(node, CMD, 90000);
+    const output = await runCommand(node, CMD, 90000, ssh);
 
     if (!output || !output.trim()) {
       console.warn(`[Storage] No output from ${safeTargetDir}`);

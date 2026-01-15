@@ -3,6 +3,8 @@ import fs from 'fs';
 import { ClusterState, Job, GpuNode, LoginNode, NodeConfig, Gpu } from '@/types/cluster';
 // ADDED: fetchClusterStats
 import { fetchNodeHardware, fetchJobsFromNode, fetchClusterStats } from './fetchers';
+import { createConnection } from './ssh';
+import { NodeSSH } from 'node-ssh';
 import { CLUSTER_NODES, GPU_INVENTORY } from './config';
 
 globalThis.CLUSTER_CACHE = globalThis.CLUSTER_CACHE || {
@@ -13,6 +15,8 @@ globalThis.CLUSTER_CACHE = globalThis.CLUSTER_CACHE || {
   isReady: false
 };
 
+globalThis.isBenchmarkRunning = false;
+
 declare global {
   var CLUSTER_CACHE: {
     nodeState: ClusterState | null;
@@ -21,6 +25,7 @@ declare global {
     lastUpdated: number;
     isReady: boolean;
   };
+  var isBenchmarkRunning: boolean;
 }
 
 let isRunning = false;
@@ -66,6 +71,13 @@ export function startBackgroundServices() {
 }
 
 async function poll() {
+  // Debug toggle
+  // console.log(`[Worker] Checking Pause Flag: ${globalThis.isBenchmarkRunning}`);
+
+  if (globalThis.isBenchmarkRunning) {
+    if (Math.random() < 0.1) console.log('[Worker] ⏸️ Polling paused due to active benchmark...');
+    return;
+  }
   console.log(`[Worker] 🔄 Polling ${CLUSTER_NODES.length} nodes...`);
 
   try {
@@ -74,13 +86,28 @@ async function poll() {
     let allJobs: Job[] = [];
     let totalPower = 0;
 
-    // 1. Fetch Node Hardware & Jobs (Parallel)
-    const nodePromises = CLUSTER_NODES.map(async (node) => {
+    // 1. Fetch Node Hardware & Jobs (Sequential to avoid SSH throttling)
+    for (const node of CLUSTER_NODES) {
+      // ABORT CHECK: If benchmark started mid-loop, stop immediately to free resources
+      if (globalThis.isBenchmarkRunning) {
+        console.log('[Worker] 🛑 Aborting poll mid-loop due to benchmark start.');
+        break;
+      }
+
+      let ssh: NodeSSH | null = null;
       try {
         const safeNode = node as unknown as NodeConfig;
 
-        const result = await fetchNodeHardware(safeNode, GPU_INVENTORY);
-        if (!result) return;
+        // Enhance: Reuse connection
+        try {
+          ssh = await createConnection(safeNode, { readyTimeout: 10000 });
+        } catch (e) {
+          console.error(`[Worker] Failed to connect to ${node.name}:`, e);
+          continue; // Skip this node
+        }
+
+        const result = await fetchNodeHardware(safeNode, GPU_INVENTORY, ssh);
+        if (!result) continue;
 
         if (node.hasGpu && result.type === 'gpu') {
           const gpuData = result.data as GpuNode;
@@ -94,15 +121,15 @@ async function poll() {
           loginNodes.push(result.data as unknown as LoginNode);
         }
 
-        const jobs = await fetchJobsFromNode(safeNode);
+        const jobs = await fetchJobsFromNode(safeNode, ssh);
         allJobs.push(...jobs);
 
       } catch (err) {
         console.error(`[Worker] Failed to poll ${node.name}:`, err);
+      } finally {
+        if (ssh) ssh.dispose();
       }
-    });
-
-    await Promise.all(nodePromises);
+    }
 
     let storageVolumes: any[] = [];
     let slurmQueue: any[] = [];

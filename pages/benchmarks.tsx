@@ -1,14 +1,19 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import useSWR from "swr";
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend
 } from "recharts";
-import { ClusterState } from "@/types/cluster";
+import {
+  ClusterState,
+} from "@/types/cluster";
+
+import PerformanceBenchmarkModal from "@/components/benchmarks/performance/PerformanceBenchmarkModal";
+import BenchmarkResultsView, { BenchmarkResult } from "@/components/benchmarks/performance/BenchmarkResultsView";
+import { MonthlyBenchmarkData } from "@/components/benchmarks/performance/MonthlyComparisonChart";
 import MLBenchmarkTab from "@/components/benchmarks/ml-benchmark-tab/MLBenchmarkTab";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-// --- Types for Performance Tab ---
 interface BenchmarkDataPoint {
   timestamp: number;
   label: string;
@@ -21,11 +26,10 @@ interface NodeData {
   data: BenchmarkDataPoint[];
 }
 
-// --- Helpers for Performance Tab ---
 function formattedDate(ts: number, range: string) {
   const date = new Date(ts);
   if (range === "today") return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (range === "7d") return date.toLocaleDateString([], { weekday: 'short' }); 
+  if (range === "7d") return date.toLocaleDateString([], { weekday: 'short' }); // Just day name, ticks logic handles separation
   if (range === "1y") return date.toLocaleDateString([], { month: 'short' });
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
@@ -52,19 +56,90 @@ function inRange(ts: number, range: "today" | "7d" | "month" | "1y") {
 }
 
 export default function BenchmarksPage() {
-  // --- Data Fetching (System Metrics ONLY) ---
-  const { data: snapshots = [], isLoading: isHistoryLoading } = useSWR<ClusterState[]>("/api/node-history", fetcher, { refreshInterval: 60000 });
 
-  // --- State ---
-  const [activeTab, setActiveTab] = useState<"performance" | "ml">("performance");
-  
-  // Performance Tab Specific State
+  // State
+  const [activeTab, setActiveTab] = useState<"performance" | "ml" | "perf-benchmark">("performance");
   const [perfSubTab, setPerfSubTab] = useState<"parameter" | "node">("parameter");
   const [range, setRange] = useState<"today" | "7d" | "month" | "1y">("today");
+  const [isPerfBenchmarkModalOpen, setPerfBenchmarkModalOpen] = useState(false);
+  const [isPerfBenchmarkStarting, setPerfBenchmarkStarting] = useState(false);
+  const [perfBenchmarkError, setPerfBenchmarkError] = useState<string | undefined>();
+  const [currentBenchmarkId, setCurrentBenchmarkId] = useState<string | null>(null);
+  const [benchmarkResults, setBenchmarkResults] = useState<BenchmarkResult[]>([]);
+  const [monthlyData, setMonthlyData] = useState<MonthlyBenchmarkData[]>([]);
+
+  // Data Fetching
+  const { data: snapshots = [], isLoading: isHistoryLoading } = useSWR<ClusterState[]>("/api/node-history", fetcher, { refreshInterval: 60000 });
+  // Performance Benchmark Status Polling
+  const { data: benchmarkStatus } = useSWR(
+    currentBenchmarkId ? `/api/performance-benchmark/status?benchmarkId=${currentBenchmarkId}` : null,
+    fetcher,
+    { refreshInterval: 2000 } // Poll every 2 seconds when benchmark is running
+  );
+
+  // Monthly Benchmark Data
+  const { data: monthlyBenchmarkData } = useSWR<{ data: MonthlyBenchmarkData[] }>(
+    "/api/performance-benchmark/monthly",
+    fetcher,
+    { refreshInterval: 60000 }
+  );
 
   const ranges = ["today", "7d", "month", "1y"] as const;
 
-  // --- Data Processing for Performance Charts ---
+
+
+  // Update benchmark results when status changes
+  useEffect(() => {
+    if (benchmarkStatus) {
+      console.log('[Frontend] Benchmark Status:', {
+        benchmarkId: currentBenchmarkId,
+        isRunning: benchmarkStatus.isRunning,
+        resultsCount: benchmarkStatus.results?.length || 0,
+        completedCount: benchmarkStatus.results?.filter((r: BenchmarkResult) => r.status === 'completed').length || 0,
+      });
+      setBenchmarkResults(benchmarkStatus.results || []);
+      if (!benchmarkStatus.isRunning && currentBenchmarkId) {
+        // Benchmark completed, fetch monthly data
+        console.log('[Frontend] Benchmark completed!');
+        setCurrentBenchmarkId(null);
+      }
+    }
+  }, [benchmarkStatus, currentBenchmarkId]);
+
+  // Update monthly data
+  useEffect(() => {
+    if (monthlyBenchmarkData?.data) {
+      setMonthlyData(monthlyBenchmarkData.data);
+    }
+  }, [monthlyBenchmarkData]);
+
+  // Performance Benchmark Handlers
+  const handleStartPerformanceBenchmark = async (password: string) => {
+    setPerfBenchmarkStarting(true);
+    setPerfBenchmarkError(undefined);
+
+    try {
+      const res = await fetch('/api/performance-benchmark/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to start benchmark");
+      }
+
+      setCurrentBenchmarkId(data.benchmarkId);
+      setPerfBenchmarkModalOpen(false);
+      setBenchmarkResults([]); // Reset results
+    } catch (e: any) {
+      setPerfBenchmarkError(e.message);
+    } finally {
+      setPerfBenchmarkStarting(false);
+    }
+  };
+
   const processedData = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return { parameterWise: [], nodeWise: [], keys: [] };
 
@@ -113,18 +188,19 @@ export default function BenchmarksPage() {
 
         <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight text-white mb-2">
-            {activeTab === "ml" ? "ML Benchmarks" : "System Metrics"}
+            {activeTab === "ml" ? "ML Benchmarks" : activeTab === "perf-benchmark" ? "Performance Benchmark" : "System Metrics"}
           </h1>
           <p className="text-gray-400 text-sm max-w-2xl leading-relaxed">
             {activeTab === "ml"
               ? "Deep learning training efficiency and loss analysis."
-              : "Real-time and historical overview of GPU utilization, memory consumption, and thermal status."}
+              : activeTab === "perf-benchmark"
+                ? "Monthly GPU performance comparison to track degradation over time."
+                : "Real-time and historical overview of GPU utilization, memory consumption, and thermal status."}
           </p>
         </div>
 
         <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
 
-          {/* Tab Switcher */}
           <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-800">
             <button
               onClick={() => setActiveTab("performance")}
@@ -140,10 +216,17 @@ export default function BenchmarksPage() {
             >
               ML Benchmarks
             </button>
+            <button
+              onClick={() => setActiveTab("perf-benchmark")}
+              className={`px-5 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === "perf-benchmark" ? "bg-red-900/30 text-red-100 shadow-sm" : "text-gray-400 hover:text-gray-200"
+                }`}
+            >
+              Performance Benchmark
+            </button>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Range Controls (Only visible on Performance Tab) */}
+
             {activeTab === "performance" && (
               <div className="flex bg-gray-900 rounded-md p-1 border border-gray-800">
                 {ranges.map((r) => (
@@ -158,14 +241,21 @@ export default function BenchmarksPage() {
                 ))}
               </div>
             )}
-            {/* Note: ML Controls (Start/Stop) are now handled inside MLBenchmarkTab, so we don't render them here */}
+
+            {activeTab === "perf-benchmark" && (
+              <button
+                onClick={() => setPerfBenchmarkModalOpen(true)}
+                className="bg-red-600 hover:bg-red-500 text-white px-4 py-1.5 rounded-md font-medium text-xs uppercase tracking-wide transition-colors shadow-lg flex items-center gap-2"
+              >
+                <span>+</span> Start Benchmark
+              </button>
+            )}
           </div>
         </div>
       </header>
 
       <main className="animate-in fade-in slide-in-from-bottom-2 duration-500">
 
-        {/* PERFORMANCE TAB CONTENT (Kept Exactly Same) */}
         {activeTab === "performance" && (
           <div className="space-y-6">
             <div className="flex space-x-6 border-b border-gray-800 mb-6">
@@ -203,16 +293,38 @@ export default function BenchmarksPage() {
           </div>
         )}
 
-        {/* ML TAB CONTENT (Replaced with New Component) */}
         {activeTab === "ml" && (
-            <MLBenchmarkTab activeTab="ml" />
+          <MLBenchmarkTab activeTab="ml" />
+        )}
+
+        {activeTab === "perf-benchmark" && (
+          <div className="space-y-6">
+            <BenchmarkResultsView
+              results={benchmarkResults}
+              monthlyData={monthlyData}
+              isRunning={benchmarkStatus?.isRunning || false}
+              currentGpu={benchmarkStatus?.currentGpu}
+              status={benchmarkStatus?.status}
+              logs={benchmarkStatus?.logs}
+              onRetry={() => setPerfBenchmarkModalOpen(true)}
+            />
+          </div>
         )}
       </main>
+
+      <PerformanceBenchmarkModal
+        isOpen={isPerfBenchmarkModalOpen}
+        onClose={() => {
+          setPerfBenchmarkModalOpen(false);
+          setPerfBenchmarkError(undefined);
+        }}
+        onStart={handleStartPerformanceBenchmark}
+        isLoading={isPerfBenchmarkStarting}
+        error={perfBenchmarkError}
+      />
     </div>
   );
 }
-
-// --- Sub-components for Performance View (Kept as is) ---
 
 function LoadingSkeleton() {
   return (
@@ -242,16 +354,19 @@ function ParameterWiseView({ data, nodeKeys, range }: { data: BenchmarkDataPoint
     if (range === '7d') {
       start = end - 7 * 24 * 60 * 60 * 1000;
       generatedTicks = [];
+      // Generate 7 ticks for the last 7 days
       for (let i = 6; i >= 0; i--) {
         generatedTicks.push(end - i * 24 * 60 * 60 * 1000);
       }
     } else if (range === '1y') {
       start = end - 365 * 24 * 60 * 60 * 1000;
       generatedTicks = [];
+      // Generate 12 ticks for the last 12 months
       for (let i = 11; i >= 0; i--) {
         generatedTicks.push(end - i * 30 * 24 * 60 * 60 * 1000);
       }
     } else if (data.length > 0) {
+      // Default auto domain for today or other ranges
       start = Math.min(...data.map(d => d.timestamp));
     }
 
@@ -270,6 +385,8 @@ function ParameterWiseView({ data, nodeKeys, range }: { data: BenchmarkDataPoint
               <h3 className="text-sm font-bold text-white tracking-wide">{config.title}</h3>
               <p className="text-[10px] text-gray-500 uppercase mt-0.5 mb-2 md:mb-0">Unit: {config.unit.trim()}</p>
             </div>
+
+            {/* Custom Header Legend */}
             <div className="flex flex-wrap gap-3 mt-1.5 md:mt-0 justify-end">
               {nodeKeys.slice(0, 4).map((nodeKey, idx) => (
                 <div key={nodeKey} className="flex items-center gap-1.5">
@@ -321,6 +438,8 @@ function ParameterWiseView({ data, nodeKeys, range }: { data: BenchmarkDataPoint
       ))}
     </div>
   );
+
+
 }
 
 function NodeWiseView({ nodes, range }: { nodes: NodeData[]; range: string }) {
