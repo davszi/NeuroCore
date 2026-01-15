@@ -35,11 +35,13 @@ def _select_model_class(task: str):
 
 
 # ---------------- QLoRA CONFIG (4bit NF4) -----------------
-def _setup_qlora_config(compute_dtype: torch.dtype) -> BitsAndBytesConfig:
+def _setup_qlora_config(compute_dtype: torch.dtype, task: str) -> BitsAndBytesConfig:
     """
     Construiește BitsAndBytesConfig pentru QLoRA 4bit NF4,
     cu dtype-ul de compute ales din attention.json.
     """
+    if task == "classification":
+        return None
     return BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_use_double_quant=True,
@@ -61,12 +63,21 @@ def _wrap_with_qlora(model, task: str) -> Dict[str, Any]:
     else:
         task_type = "CAUSAL_LM"
 
+    target_modules = None
+    if task == "classification":
+        model_type = getattr(getattr(model, "config", None), "model_type", "").lower()
+        if model_type == "distilbert":
+            target_modules = ["q_lin", "k_lin", "v_lin", "out_lin"]
+        elif model_type == "albert":
+            target_modules = ["query", "key", "value", "dense"]
+            
     lora_cfg = LoraConfig(
         r=8,
         lora_alpha=16,
         lora_dropout=0.1,
         bias="none",
         task_type=task_type,
+        target_modules=target_modules,
     )
 
     model = get_peft_model(model, lora_cfg)
@@ -118,20 +129,26 @@ def run_training(final_cfg: Dict[str, Any]) -> Dict[str, Any]:
         eval_samples=final_cfg["eval_samples"],
     )
 
-    num_labels = 7 if task == "classification" else None
+    num_labels = 6 if task == "classification" else None
 
     # 4) QLoRA quantization config
-    bnb_config = _setup_qlora_config(compute_dtype)
+    bnb_config = _setup_qlora_config(compute_dtype, task)
 
     print("[train] Loading model 4bit…")
     model_cls = _select_model_class(task)
 
     model_kwargs = {
         "cache_dir": general_cfg.get("cache_dir"),
-        "quantization_config": bnb_config,
-        "device_map": "auto",
         "dtype": compute_dtype,
     }
+
+    if bnb_config is not None:
+        model_kwargs["quantization_config"] = bnb_config
+
+    if task == "classification":
+        model_kwargs["device_map"] = {"": 0}   # force everything on cuda:0
+    else:
+        model_kwargs["device_map"] = "auto"
 
     if num_labels is not None:
         model_kwargs["num_labels"] = num_labels
@@ -147,6 +164,22 @@ def run_training(final_cfg: Dict[str, Any]) -> Dict[str, Any]:
     # 2) Prepare for K-bit training
     print("[train] Preparing model for k-bit training…")
     model = prepare_model_for_kbit_training(model)
+
+    model_type = getattr(getattr(model, "config", None), "model_type", "").lower()
+    if task == "summarization" and model_type == "bart":
+        # 1) checkpointing + cache incompatibile
+        model.config.use_cache = False
+
+        # 2) foarte important: asigură că intrările cer grad
+        if hasattr(model, "enable_input_require_grads"):
+            model.enable_input_require_grads()
+        else:
+            emb = model.get_input_embeddings()
+            if emb is not None:
+                emb.weight.requires_grad_(True)
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print("[debug] trainable params:", trainable_params)
+
 
     # 3) Apply LoRA adapters LAST
     print("[train] Applying QLoRA adapters…")
@@ -167,7 +200,7 @@ def run_training(final_cfg: Dict[str, Any]) -> Dict[str, Any]:
         )
 
     # 9) TRAINING ARGUMENTS (safe subset pt versiunea ta de transformers)
-    base_output_dir = general_cfg.get("base_output_dir", "runs")
+    base_output_dir = general_cfg.get("base_output_dir", "/tmp/nc_runs")
     run_name = f"{task}_{model_name.replace('/', '_')}_{attention['ui_choice']}"
     output_dir = os.path.join(base_output_dir, run_name)
 
@@ -183,8 +216,7 @@ def run_training(final_cfg: Dict[str, Any]) -> Dict[str, Any]:
         warmup_ratio=training_cfg["warmup_ratio"],
         fp16=False,
         bf16=False,
-        save_strategy="epoch",
-        save_total_limit=1
+        save_strategy="no"
     )
 
     # 10) TRAINER + CALLBACK DE MONITORIZARE
@@ -224,11 +256,6 @@ def run_training(final_cfg: Dict[str, Any]) -> Dict[str, Any]:
                 eval_metrics["perplexity"] = math.exp(eval_loss)
             except OverflowError:
                 pass
-
-    # 13) SAVE MODEL + TOKENIZER
-    trainer.save_model(output_dir)
-    tokenizer.save_pretrained(output_dir)
-    print(f"[train] Saved model + tokenizer to {output_dir}")
 
     # 14) MONITOR FINAL RUN
     monitor_record = monitor_run(
