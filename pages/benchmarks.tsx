@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import BenchmarkLogin from "@/components/benchmarks/BenchmarkLogin";
 import useSWR from "swr";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend
@@ -56,6 +57,37 @@ function inRange(ts: number, range: "today" | "7d" | "month" | "1y") {
 }
 
 export default function BenchmarksPage() {
+
+  // Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginError, setLoginError] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = sessionStorage.getItem('benchmarkAuthToken');
+      setIsAuthenticated(!!token);
+    }
+  }, []);
+
+  const handleLogin = async (username: string, password: string) => {
+    setLoginError(undefined);
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        sessionStorage.setItem('benchmarkAuthToken', data.token);
+        setIsAuthenticated(true);
+      } else {
+        setLoginError(data.error || 'Login failed');
+      }
+    } catch (e: any) {
+      setLoginError(e.message || 'Login failed');
+    }
+  };
 
   // State
   const [activeTab, setActiveTab] = useState<"performance" | "ml" | "perf-benchmark">("performance");
@@ -180,6 +212,10 @@ export default function BenchmarksPage() {
   }, [snapshots, range]);
 
   const hasData = processedData.parameterWise.length > 0;
+
+  if (!isAuthenticated) {
+    return <BenchmarkLogin onLogin={handleLogin} error={loginError} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-4 md:p-6 font-sans">

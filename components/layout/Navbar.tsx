@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { HiOutlineMenu, HiX } from 'react-icons/hi'; // <-- 1. Import icons
+import { HiOutlineMenu, HiX } from 'react-icons/hi';
 
 // Define the navigation links
 const navItems = [
@@ -11,9 +11,30 @@ const navItems = [
   { name: 'Settings', href: '/settings' },
 ];
 
+// Helper function to check authentication
+const isBenchmarkAuthenticated = () => {
+  if (typeof window === 'undefined') return false;
+  return !!sessionStorage.getItem('benchmarkAuthToken');
+};
+
 export default function Navbar() {
   const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false); // State for mobile menu
+  const [isOpen, setIsOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Check authentication status
+  useEffect(() => {
+    setIsAuthenticated(isBenchmarkAuthenticated());
+  }, [router.pathname]);
+
+  // Handle navigation click
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, item: { name: string; href: string }) => {
+    if (item.name === 'Benchmarks' && !isAuthenticated) {
+      e.preventDefault();
+      router.push('/benchmarks?tab=perf-benchmark');
+      setIsOpen(false);
+    }
+  };
 
   return (
     <nav className="bg-gray-900 border-b border-gray-700">
@@ -33,15 +54,19 @@ export default function Navbar() {
                   <Link
                     key={item.name}
                     href={item.href}
+                    onClick={(e) => handleNavClick(e, item)}
                     className={`
                       ${router.pathname === item.href
-                        ? 'bg-gray-800 text-white' // Active link
-                        : 'text-gray-300 hover:bg-gray-700 hover:text-white' // Inactive link
+                        ? 'bg-gray-800 text-white'
+                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                       }
-                      px-3 py-2 rounded-md text-sm font-medium
+                      px-3 py-2 rounded-md text-sm font-medium inline-flex items-center gap-2
                     `}
                   >
                     {item.name}
+                    {item.name === 'Benchmarks' && !isAuthenticated && (
+                      <span className="text-xs">🔒</span>
+                    )}
                   </Link>
                 ))}
               </div>
@@ -59,7 +84,6 @@ export default function Navbar() {
             >
               <span className="sr-only">Open main menu</span>
               
-              {/* 2. Use the imported icon components */}
               {isOpen ? (
                 <HiX className="block h-6 w-6" aria-hidden="true" />
               ) : (
@@ -81,16 +105,24 @@ export default function Navbar() {
             <Link
               key={item.name}
               href={item.href}
-              onClick={() => setIsOpen(false)} // Close menu on click
+              onClick={(e) => {
+                handleNavClick(e, item);
+                setIsOpen(false);
+              }}
               className={`
                 ${router.pathname === item.href
-                  ? 'bg-gray-800 text-white' // Active link
-                  : 'text-gray-300 hover:bg-gray-700 hover:text-white' // Inactive link
+                  ? 'bg-gray-800 text-white'
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                 }
                 block px-3 py-2 rounded-md text-base font-medium
               `}
             >
-              {item.name}
+              <span className="inline-flex items-center gap-2">
+                {item.name}
+                {item.name === 'Benchmarks' && !isAuthenticated && (
+                  <span className="text-xs">🔒</span>
+                )}
+              </span>
             </Link>
           ))}
         </div>
