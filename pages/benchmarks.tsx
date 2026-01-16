@@ -89,6 +89,11 @@ export default function BenchmarksPage() {
     }
   };
 
+  const handleLogout = () => {
+    sessionStorage.removeItem('benchmarkAuthToken');
+    setIsAuthenticated(false);
+  };
+
   // State
   const [activeTab, setActiveTab] = useState<"performance" | "ml" | "perf-benchmark">("performance");
   const [perfSubTab, setPerfSubTab] = useState<"parameter" | "node">("parameter");
@@ -236,6 +241,15 @@ export default function BenchmarksPage() {
         </div>
 
         <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 rounded-md transition-colors border border-gray-700"
+            >
+              Logout
+            </button>
+          </div>
 
           <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-800">
             <button
