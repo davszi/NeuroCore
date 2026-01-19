@@ -40,7 +40,7 @@ export default async function handler(
     if (isValid) {
       // Generate a session token (you should use JWT or similar in production)
       const token = generateSessionToken(username);
-      
+
       return res.status(200).json({
         token,
         status: 'success'
@@ -52,7 +52,7 @@ export default async function handler(
     }
   } catch (err: any) {
     console.error('SSH Auth Error:', err.message);
-    
+
     return res.status(500).json({
       error: 'Connection to university server failed',
       details: process.env.NODE_ENV === 'development' ? err.message : undefined
@@ -64,21 +64,64 @@ export default async function handler(
 function verifySSHCredentials(config: any): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const conn = new Client();
-    
+    let resolved = false;
+
+    // Timeout handler - close connection if it takes too long
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        try {
+          conn.end();
+          conn.destroy();
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        reject(new Error('SSH connection timeout'));
+      }
+    }, config.readyTimeout || 10000);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      try {
+        conn.end();
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    };
+
     conn.on('ready', () => {
-      conn.end();
-      resolve(true);
-    });
-    
-    conn.on('error', (err: Error) => {
-      // Check if error is authentication failure
-      if (err.message.includes('authentication')) {
-        resolve(false);
-      } else {
-        reject(err);
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        console.log('[SSH Auth] Connection verified successfully, connection closed.');
+        resolve(true);
       }
     });
-    
+
+    conn.on('error', (err: Error) => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        // Check if error is authentication failure
+        if (err.message.includes('authentication') || err.message.includes('All configured authentication methods failed')) {
+          console.log('[SSH Auth] Authentication failed, connection closed.');
+          resolve(false);
+        } else {
+          console.error('[SSH Auth] Connection error:', err.message);
+          reject(err);
+        }
+      }
+    });
+
+    conn.on('close', () => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeout);
+        console.log('[SSH Auth] Connection closed unexpectedly.');
+        resolve(false);
+      }
+    });
+
     conn.connect(config);
   });
 }
@@ -91,10 +134,10 @@ function generateSessionToken(username: string): string {
     timestamp: Date.now(),
     expiresAt: Date.now() + (3600 * 1000) // 1 hour
   };
-  
+
   // In production, use jsonwebtoken library:
   // import jwt from 'jsonwebtoken';
   // return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '1h' });
-  
+
   return Buffer.from(JSON.stringify(payload)).toString('base64');
 }
