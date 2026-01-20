@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import BenchmarkLogin from "@/components/benchmarks/BenchmarkLogin";
 import useSWR from "swr";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend
@@ -56,6 +57,42 @@ function inRange(ts: number, range: "today" | "7d" | "month" | "1y") {
 }
 
 export default function BenchmarksPage() {
+
+  // Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginError, setLoginError] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = sessionStorage.getItem('benchmarkAuthToken');
+      setIsAuthenticated(!!token);
+    }
+  }, []);
+
+  const handleLogin = async (username: string, password: string) => {
+    setLoginError(undefined);
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        sessionStorage.setItem('benchmarkAuthToken', data.token);
+        setIsAuthenticated(true);
+      } else {
+        setLoginError(data.error || 'Login failed');
+      }
+    } catch (e: any) {
+      setLoginError(e.message || 'Login failed');
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('benchmarkAuthToken');
+    setIsAuthenticated(false);
+  };
 
   // State
   const [activeTab, setActiveTab] = useState<"performance" | "ml" | "perf-benchmark">("performance");
@@ -181,6 +218,10 @@ export default function BenchmarksPage() {
 
   const hasData = processedData.parameterWise.length > 0;
 
+  if (!isAuthenticated) {
+    return <BenchmarkLogin onLogin={handleLogin} error={loginError} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-4 md:p-6 font-sans">
 
@@ -200,6 +241,15 @@ export default function BenchmarksPage() {
         </div>
 
         <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 rounded-md transition-colors border border-gray-700"
+            >
+              Logout
+            </button>
+          </div>
 
           <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-800">
             <button
