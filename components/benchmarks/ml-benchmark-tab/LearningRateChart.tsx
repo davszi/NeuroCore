@@ -1,11 +1,18 @@
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+
+interface RunMeta {
+  id: string;
+  display: string;
+  color: string;
+}
 
 interface Props {
   data: any[];
+  runs: RunMeta[];
 }
 
-export default function LearningRateChart({ data }: Props) {
+export default function LearningRateChart({ data, runs }: Props) {
   return (
     <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 h-80 shadow-lg">
       <h3 className="text-gray-300 font-bold mb-4 flex items-center gap-2">
@@ -30,23 +37,32 @@ export default function LearningRateChart({ data }: Props) {
               <YAxis 
                 stroke="#9CA3AF" 
                 tick={{ fontSize: 12 }}
-                tickFormatter={(val) => val.toExponential(1)} // Scientific notation for small LR
-                width={50}
+                tickFormatter={(val) => val.toExponential(1)}
+                width={60} // Extra wide for scientific notation (e.g., 5.0e-5)
               />
               <Tooltip 
                 contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151' }}
-                itemStyle={{ color: '#EAB308' }}
-                formatter={(value: number) => [value.toExponential(2), 'LR']}
                 labelStyle={{ color: '#9CA3AF' }}
+                formatter={(value: number, name: string) => [
+                    typeof value === 'number' ? value.toExponential(2) : value, 
+                    name
+                ]}
               />
-              <Line 
-                type="monotone" 
-                dataKey="learning_rate" 
-                stroke="#EAB308" // Yellow
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-              />
+              <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px', cursor: 'pointer' }} />
+
+              {runs.map(run => (
+                <Line 
+                  key={run.id}
+                  type="monotone" 
+                  dataKey={`lr_${run.id}`} 
+                  name={run.display}
+                  stroke={run.color}
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                  connectNulls={true}
+                />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         )}

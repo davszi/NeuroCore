@@ -16,7 +16,6 @@ declare global {
 globalThis.DEPLOY_LOGS = globalThis.DEPLOY_LOGS || {};
 
 // --- HELPER: GENERATE LAUNCHER SCRIPT ---
-// We create this file on the fly to ensure exact Linux syntax
 const createStartScript = (remotePath: string) => `#!/bin/bash
 # Move to directory
 cd "${remotePath}"
@@ -24,25 +23,77 @@ cd "${remotePath}"
 # 1. Clean up old logs
 rm -f setup.log
 
-# 2. Fix Windows line endings for the main script
-sed -i 's/\\r$//' setup_env.sh
-chmod +x setup_env.sh
+# 2. Windows line endings for the main script
+if [ -f "setup_env.sh" ]; then
+    sed -i 's/\r$//' setup_env.sh
+    chmod +x setup_env.sh
+fi
 
-# 3. Create placeholder log to ensure file exists
+# 3. Create placeholder log
 touch setup.log
 echo "[Launcher] Starting installation..." >> setup.log
 
-# 4. Run python script in background (Detached)
-# We use setsid to force a new session, ensuring it survives disconnect
+# Robust Polyfill for 'virtualenv'
+if ! command -v virtualenv &> /dev/null; then
+    echo "[Launcher] 'virtualenv' command not found. Defining smart polyfill..." >> setup.log
+    
+    virtualenv() {
+        local VENV_DIR="\${1:-.}"
+        echo "[Polyfill] Creating virtual environment in $VENV_DIR..." >> setup.log
+        
+        # Try standard creation first
+        if python3 -m venv "$VENV_DIR" >> setup.log 2>&1; then
+            echo "[Polyfill] Success." >> setup.log
+            return 0
+        fi
+
+        # Fallback: Try creating without pip (fixes Debian/Ubuntu issue)
+        echo "[Polyfill] Standard creation failed. Retrying with --without-pip..." >> setup.log
+        if python3 -m venv "$VENV_DIR" --without-pip >> setup.log 2>&1; then
+            echo "[Polyfill] Venv created. Bootstrapping pip manually..." >> setup.log
+            
+            # Download get-pip.py
+            if command -v curl &> /dev/null; then
+                curl -fsS https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+            elif command -v wget &> /dev/null; then
+                # Changed -o (log) to -O (output file)
+                wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py
+            else
+                echo "[Polyfill] Error: No curl or wget found to download pip." >> setup.log
+                return 1
+            fi
+
+            # Install pip into the new venv
+            "$VENV_DIR/bin/python3" get-pip.py >> setup.log 2>&1
+            local RET=$?
+            rm -f get-pip.py
+            
+            if [ $RET -eq 0 ]; then
+                echo "[Polyfill] Pip installed successfully." >> setup.log
+                return 0
+            else
+                echo "[Polyfill] Failed to install pip." >> setup.log
+                return 1
+            fi
+        else
+            echo "[Polyfill] Critical: Failed to create venv even without pip." >> setup.log
+            return 1
+        fi
+    }
+    export -f virtualenv
+fi
+
+# 4. Run python script in background
 setsid nohup bash setup_env.sh . >> setup.log 2>&1 < /dev/null &
 
-# 5. Small delay to ensure process starts
+# 5. Small delay
 sleep 2
 echo "Launcher finished."
 `;
 
 // --- HELPER: RECURSIVE FILE GETTER ---
 const getFiles = (dir: string, fileList: string[] = []) => {
+  if (!fs.existsSync(dir)) return [];
   const files = fs.readdirSync(dir);
   files.forEach((file) => {
     const filePath = path.join(dir, file);
@@ -51,11 +102,11 @@ const getFiles = (dir: string, fileList: string[] = []) => {
     const IGNORED = [
       'trash', 
       '__pycache__', 
-      'venv',          // Don't upload local python env
-      'node_modules',  // Don't upload node modules
-      '.git',          // Don't upload git history
-      '.DS_Store',     // Mac metadata
-      'outputs'        // Don't upload local experiment results
+      'venv',          
+      'node_modules',  
+      '.git',          
+      '.DS_Store',     
+      'outputs'        
     ];
 
     if (IGNORED.includes(file) || file.startsWith('.') || file.endsWith('.pyc')) return;
@@ -82,6 +133,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (job.status === 'installing' && job.creds) {
        await checkRemoteLog(jobId, job);
     }
+    // Mask credentials before sending to frontend
     const safeJob = { ...job, creds: undefined }; 
     return res.status(200).json(safeJob);
   }
@@ -128,7 +180,7 @@ async function startBackgroundUpload(jobId: string, host: string, user: string, 
     const allFiles = getFiles(localBackendPath);
     
     // 1. Create Base Directory
-    conn.exec(`mkdir -p ${remotePath}`, (err, stream) => {
+    conn.exec(`mkdir -p "${remotePath}"`, (err, stream) => {
         if (err) { log(`Mkdir Error: ${err.message}`); return; }
         stream.on('data', () => {}); 
         stream.on('close', () => {
@@ -140,12 +192,11 @@ async function startBackgroundUpload(jobId: string, host: string, user: string, 
                 // 2. Upload Python Files
                 uploadFiles(sftp, allFiles, localBackendPath, remotePath, log, () => {
                     
-                    // 3. UPLOAD THE LAUNCHER SCRIPT (The Fix)
+                    // 3. UPLOAD THE LAUNCHER SCRIPT
                     const startScriptContent = createStartScript(remotePath);
                     const startScriptPath = path.join(remotePath, 'start.sh').split(path.sep).join('/');
                     
-                    // Write the script directly to the server stream
-                    const writeStream = sftp.createWriteStream(startScriptPath);
+                    const writeStream = sftp.createWriteStream(startScriptPath, { mode: 0o755 });
                     writeStream.end(startScriptContent);
                     
                     writeStream.on('close', () => {
@@ -179,7 +230,8 @@ function uploadFiles(sftp: any, files: string[], localRoot: string, remoteRoot: 
         
         sftp.mkdir(path.dirname(remoteFile), { attributes: {} }, () => {
             sftp.fastPut(localFile, remoteFile, (err: any) => {
-                if (err && i % 5 === 0) log(`Upload Warning: ${relative}`);
+                // Ignore transient errors, assume directory might exist
+                if (err && i % 5 === 0) log(`Upload Info: ${relative}`);
                 if (i % Math.ceil(total / 5) === 0) log(`Progress: ${Math.round((i / total) * 100)}%`);
                 i++;
                 uploadNext();
@@ -189,18 +241,15 @@ function uploadFiles(sftp: any, files: string[], localRoot: string, remoteRoot: 
     uploadNext();
 }
 
-// --- HELPER: TRIGGER INSTALL (Simple Execution) ---
+// --- HELPER: TRIGGER INSTALL ---
 function triggerInstall(conn: Client, remotePath: string, log: any, jobId: string) {
     log("Finalizing setup...");
-
-    // The script 'start.sh' is already on the server. We just run it.
-    // This mimics YOU typing it in the terminal.
-    const cmd = `bash ${remotePath}/start.sh`;
+    // Quoted path for safety
+    const cmd = `bash "${remotePath}/start.sh"`;
 
     conn.exec(cmd, (err, stream) => {
         if (err) { log(`Launch Error: ${err.message}`); return; }
-
-        stream.on('data', (d: any) => {}); // Consume output
+        stream.on('data', (d: any) => {}); 
         stream.on('close', () => {
              log("✅ Launcher finished. Switching to log monitor...");
              if (globalThis.DEPLOY_LOGS[jobId]) {
@@ -216,7 +265,8 @@ async function checkRemoteLog(jobId: string, job: any) {
     return new Promise<void>((resolve) => {
         const conn = new Client();
         conn.on('ready', () => {
-            conn.exec(`tail -n 15 ${job.creds.path}/setup.log`, (err, stream) => {
+            // Quoted path to handle spaces in directory names
+            conn.exec(`tail -n 20 "${job.creds.path}/setup.log"`, (err, stream) => {
                 if (err) { conn.end(); resolve(); return; }
                 let data = '';
                 stream.on('data', (chunk: any) => { data += chunk; });
@@ -228,11 +278,20 @@ async function checkRemoteLog(jobId: string, job: any) {
                                  job.logs.push(`[Remote] ${line}`);
                              }
                         });
+                        
+                        // Success Condition
                         if (data.includes("SETUP_COMPLETE_SIGNAL")) {
                             job.status = 'success';
                             job.installPath = job.creds.path;
-                            delete job.creds; 
+                            delete job.creds; // Secure: Remove password from memory
                             job.logs.push("✅ Installation verified complete.");
+                        }
+
+                        // Error Condition
+                        if (data.includes("CRITICAL ERROR") || data.includes("command not found") || data.includes("failed")) {
+                            job.status = 'error';
+                            job.logs.push("❌ Deployment Failed. Check logs above.");
+                            delete job.creds; // Secure: Remove password from memory
                         }
                     }
                     conn.end();

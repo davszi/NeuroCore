@@ -1,11 +1,18 @@
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+
+interface RunMeta {
+  id: string;
+  display: string;
+  color: string;
+}
 
 interface Props {
   data: any[];
+  runs: RunMeta[];
 }
 
-export default function TrainingLossChart({ data }: Props) {
+export default function TrainingLossChart({ data, runs }: Props) {
   return (
     <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 h-80 shadow-lg">
       <h3 className="text-gray-300 font-bold mb-4 flex items-center gap-2">
@@ -32,23 +39,33 @@ export default function TrainingLossChart({ data }: Props) {
                 stroke="#9CA3AF" 
                 domain={['auto', 'auto']}
                 tick={{ fontSize: 12 }}
-                width={40}
+                width={50} // Increased width to fit larger numbers
               />
               <Tooltip 
                 contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '4px' }}
-                itemStyle={{ color: '#22D3EE' }}
-                formatter={(value: number) => [value.toFixed(4), 'Loss']}
                 labelStyle={{ color: '#9CA3AF', marginBottom: '0.25rem' }}
+                // Strict formatting: 4 decimal places
+                formatter={(value: number, name: string) => [
+                    typeof value === 'number' ? value.toFixed(4) : value, 
+                    name
+                ]}
               />
-              <Line 
-                type="monotone" 
-                dataKey="loss" 
-                stroke="#22D3EE" // Cyan
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, strokeWidth: 0 }}
-                isAnimationActive={false} 
-              />
+              <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px', cursor: 'pointer' }} />
+              
+              {runs.map(run => (
+                <Line 
+                  key={run.id}
+                  type="monotone" 
+                  dataKey={`loss_${run.id}`} 
+                  name={run.display}
+                  stroke={run.color}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0 }}
+                  isAnimationActive={false} 
+                  connectNulls={true}
+                />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         )}
