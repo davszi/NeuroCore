@@ -27,7 +27,7 @@ export async function createConnection(node: Partial<NodeConfig>, options?: Conn
     host: node.host,
     port: node.port,
     username: username,
-    readyTimeout: options?.readyTimeout || 20000, // Reduced default from 43s to 20s
+    readyTimeout: options?.readyTimeout || 25000,
     tryKeyboard: true,
     agent: false, // Explicitly false to disable agent
     // Setup handling for keyboard-interactive (some servers demand this instead of password)
@@ -47,7 +47,6 @@ export async function createConnection(node: Partial<NodeConfig>, options?: Conn
     }
   };
 
-  // DEBUG: Check if credentials exist (do not log actual password)
   console.log(`[SSH Debug] Connecting to ${node.name} as ${username}. Has Password: ${!!password}, Has Key: ${!!keyOrPath}`);
 
   if (password) sshConfig.password = password;

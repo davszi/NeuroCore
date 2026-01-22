@@ -29,6 +29,7 @@ export interface GpuNode {
   gpus: Gpu[];
   active_users: number;
   active_usernames: string[];
+  is_reachable?: boolean;
 }
 
 export interface LoginNode {
@@ -39,6 +40,7 @@ export interface LoginNode {
   mem_util_percent: number;
   active_users: number;
   active_usernames: string[];
+  is_reachable?: boolean;
 }
 
 export interface StorageVolume {

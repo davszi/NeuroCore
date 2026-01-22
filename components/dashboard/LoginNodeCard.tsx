@@ -9,16 +9,31 @@ interface LoginNodeCardProps {
 
 export default function LoginNodeCard({ node }: LoginNodeCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const isOffline = node.is_reachable === false; // Check the flag
 
   return (
-    <div className="bg-gray-900 shadow-lg rounded-lg p-4 border border-gray-700">
-
+    <div 
+      className={`shadow-lg rounded-lg p-4 border transition-all duration-300 ${
+        isOffline 
+          ? "bg-gray-900/50 border-red-900/50 opacity-75 grayscale" 
+          : "bg-gray-900 border-gray-700"
+      }`}
+    >
       {/* --- Header --- */}
-      <div className="mb-3">
-        <h3 className="text-lg font-bold text-white">{node.node_name}</h3>
-        <p className="text-xs text-gray-400">
-          {node.cores_total} Cores, {node.mem_total_gb}GB MEM
-        </p>
+      <div className="mb-3 flex justify-between items-start">
+        <div>
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            {node.node_name}
+            {isOffline && (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-900/50 text-red-400 border border-red-900 uppercase tracking-wider">
+                Offline
+              </span>
+            )}
+          </h3>
+          <p className="text-xs text-gray-400">
+            {node.cores_total} Cores, {node.mem_total_gb}GB MEM
+          </p>
+        </div>
       </div>
 
       {/* --- Util Bars --- */}
@@ -27,8 +42,8 @@ export default function LoginNodeCard({ node }: LoginNodeCardProps) {
         <ProgressBar label="MEM" value={node.mem_util_percent} />
       </div>
 
-      {/* --- Active User Count --- */}
-      <button
+      {/* ... Keep the User Count section same as before ... */}
+       <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center justify-between w-full text-sm text-gray-300 hover:text-white transition"
       >
@@ -38,32 +53,19 @@ export default function LoginNodeCard({ node }: LoginNodeCardProps) {
             {node.active_users} Active User{node.active_users !== 1 ? 's' : ''}
           </span>
         </div>
-        {expanded ? (
-          <HiChevronUp className="w-4 h-4" />
-        ) : (
-          <HiChevronDown className="w-4 h-4" />
-        )}
+        {expanded ? <HiChevronUp /> : <HiChevronDown />}
       </button>
 
-      {/* --- Expandable Username List --- */}
-      {
-        expanded && node.active_usernames?.length > 0 && (
+      {expanded && node.active_usernames?.length > 0 && (
           <div className="mt-3 bg-gray-800 p-3 rounded-lg border border-gray-700">
-            <h4 className="text-xs font-semibold text-gray-400 mb-2">Active Users:</h4>
-            <ul className="space-y-1 text-sm text-cyan-300">
+             {/* ... existing user list code ... */}
+             <ul className="space-y-1 text-sm text-cyan-300">
               {node.active_usernames.map((user) => (
                 <li key={user}>• {user}</li>
               ))}
             </ul>
           </div>
-        )
-      }
-
-      {
-        expanded && node.active_usernames?.length === 0 && (
-          <p className="mt-2 text-xs text-gray-500">No users currently logged in.</p>
-        )
-      }
-    </div >
+      )}
+    </div>
   );
 }
