@@ -24,14 +24,14 @@ export const CLUSTER_NODES: SafeNodeConfig[] = [
     user: "mw86"
   },
   {
-    name: "cloud-244", 
+    name: "cloud-244",
     host: "cloud-244.rz.tu-clausthal.de",
     port: 22,
     hasGpu: false,
     user: "mw86"
   },
   {
-    name: "cloud-248", 
+    name: "cloud-248",
     host: "cloud-248.rz.tu-clausthal.de",
     port: 22,
     hasGpu: false,

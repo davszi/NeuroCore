@@ -120,10 +120,11 @@ async function initializeBenchmark(benchmarkId: string) {
     // Wait for worker to see the pause flag and release sockets
     log('⏳ [Benchmark] Waiting 12s for background services to pause/timeout...');
     await new Promise(resolve => setTimeout(resolve, 12000));
+    if (state.status === 'cancelled') return;
 
     const username = sshUser;
 
-    for (const node of CLUSTER_NODES) {
+    for (const node of CLUSTER_NODES.filter(n => n.hasGpu)) {
       const targetNode = node as unknown as NodeConfig;
       log(`🔍 [Benchmark] Checking node: ${targetNode.name}`);
 
@@ -134,6 +135,11 @@ async function initializeBenchmark(benchmarkId: string) {
         const stagger = Math.floor(Math.random() * 1000 + 100);
         // log(`   ⏳ Staggering connection by ${stagger}ms`); 
         await new Promise(resolve => setTimeout(resolve, stagger));
+        if (state.status === 'cancelled') {
+          log('🛑 [Benchmark] Initialization cancelled by user. Aborting node setup.');
+          throw new Error('STOPPED_BY_USER');
+        }
+
         try {
           ssh = await createConnection(targetNode);
         } catch (e: any) {
@@ -201,7 +207,9 @@ async function initializeBenchmark(benchmarkId: string) {
               }
 
               nodeStats.processes = stoppedCount;
-              log(`[${targetNode.name}] ✅ Stopped ${stoppedCount}/${pidList.length} process(es)`);
+              log(`[${targetNode.name}] 💀 Issuing final force-kill for all user processes...`);
+              await runCommand(targetNode, `pkill -u ${username} -9 2>/dev/null || true`, 5000, ssh);
+              log(`[${targetNode.name}] ✅ Stopped ${stoppedCount} process(es) + performed final cleanup.`);
             } else {
               log(`[${targetNode.name}] ℹ️  No user processes found`);
             }
@@ -264,6 +272,7 @@ async function initializeBenchmark(benchmarkId: string) {
     log(`📊 Stats: ${totalSlurm} SLURM jobs canceled, ${totalProcs} processes killed.`);
 
   } catch (error: any) {
+    if (error.message === 'STOPPED_BY_USER') return;
     log(`🔴 Error stopping jobs: ${error.message}`);
     state.status = 'failed';
     state.error = error.message;
@@ -280,6 +289,10 @@ async function initializeBenchmark(benchmarkId: string) {
     const gpuErrors: string[] = [];
 
     for (const node of CLUSTER_NODES.filter(n => n.hasGpu)) {
+      if (state.status === 'cancelled') {
+        log('🛑 [Benchmark] GPU discovery cancelled by user.');
+        return;
+      }
       const targetNode = node as unknown as NodeConfig;
       log(`🔍 Querying GPUs on ${targetNode.name}...`);
       let ssh: NodeSSH | null = null;
@@ -346,6 +359,52 @@ async function initializeBenchmark(benchmarkId: string) {
     }
 
     log(`✅ Found ${allGpus.length} GPU(s) total.`);
+
+    // Phase 3: Deploy Benchmark Suite & Setup Environment
+    log('\n📦 [Benchmark] Phase 3: Deploying Architecture & Env...');
+    const path = await import('path');
+    const localBenchmarkDir = path.join(process.cwd(), 'benchmark-ml');
+    const remoteBenchmarkDir = '~/neurocore-benchmark';
+
+    for (const node of CLUSTER_NODES.filter(n => n.hasGpu)) {
+      if (state.status === 'cancelled') return;
+      const targetNode = node as unknown as NodeConfig;
+      log(`[${targetNode.name}] 🚀 Deploying benchmark scripts...`);
+
+      let ssh: NodeSSH | null = null;
+      try {
+        ssh = await createConnection(targetNode);
+
+        // Ensure remote directory exists
+        await runCommand(targetNode, `mkdir -p ${remoteBenchmarkDir}`, 5000, ssh);
+
+        // Upload the benchmark-ml directory
+        // In production, we might want to skip this if it already exists or hash it
+        await ssh.putDirectory(localBenchmarkDir, remoteBenchmarkDir, {
+          recursive: true,
+          concurrency: 10,
+          validate: (itemPath) => !itemPath.includes('venv') && !itemPath.includes('__pycache__') && !itemPath.includes('.git')
+        });
+
+        log(`[${targetNode.name}] 🛠️  Initializing environment (this may take 1-2 mins)...`);
+
+        // Run setup script
+        const setupCmd = `cd ${remoteBenchmarkDir} && chmod +x setup_env.sh && ./setup_env.sh .`;
+        const setupOutput = await runCommand(targetNode, setupCmd, 120000, ssh);
+
+        if (setupOutput.includes('SETUP_COMPLETE_SIGNAL')) {
+          log(`[${targetNode.name}] ✅ Environment ready.`);
+        } else {
+          log(`[${targetNode.name}] ⚠️ Environment setup returned unexpected output. Proceeding anyway...`);
+        }
+
+      } catch (err: any) {
+        log(`[${targetNode.name}] 🔴 Deployment failed: ${err.message}`);
+        // We might want to mark this node as failed, but for now let's just warn
+      } finally {
+        if (ssh) ssh.dispose();
+      }
+    }
 
     // Update state to ready/running
     state.gpus = allGpus;

@@ -1082,5 +1082,789 @@
       "power_consumption_avg": 397.254,
       "benchmark_score": 1789
     }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "gpuName": "NVIDIA A100 80GB PCIe",
+    "nodeName": "cloud-243",
+    "metrics": {
+      "utilization_avg": 78,
+      "memory_used_avg": 11637,
+      "temperature_avg": 52,
+      "power_consumption_avg": 277.68,
+      "benchmark_score": 781
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "gpuName": "Tesla T4",
+    "nodeName": "cloud-243",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 108,
+      "temperature_avg": 36,
+      "power_consumption_avg": 26.72,
+      "benchmark_score": 1
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "gpuName": "NVIDIA H100 NVL",
+    "nodeName": "cloud-247",
+    "metrics": {
+      "utilization_avg": 60,
+      "memory_used_avg": 95302,
+      "temperature_avg": 66,
+      "power_consumption_avg": 256.02,
+      "benchmark_score": 601
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-202-gpu-0",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-202",
+    "metrics": {
+      "utilization_avg": 81,
+      "memory_used_avg": 43001,
+      "temperature_avg": 46,
+      "power_consumption_avg": 324.02,
+      "benchmark_score": 811
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-202-gpu-1",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-202",
+    "metrics": {
+      "utilization_avg": 72,
+      "memory_used_avg": 89635,
+      "temperature_avg": 46,
+      "power_consumption_avg": 301.27,
+      "benchmark_score": 721
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-202-gpu-2",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-202",
+    "metrics": {
+      "utilization_avg": 76,
+      "memory_used_avg": 89635,
+      "temperature_avg": 47,
+      "power_consumption_avg": 297.69,
+      "benchmark_score": 761
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-202-gpu-3",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-202",
+    "metrics": {
+      "utilization_avg": 76,
+      "memory_used_avg": 89635,
+      "temperature_avg": 44,
+      "power_consumption_avg": 283.01,
+      "benchmark_score": 761
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-203-gpu-0",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-203",
+    "metrics": {
+      "utilization_avg": 71,
+      "memory_used_avg": 69677,
+      "temperature_avg": 44,
+      "power_consumption_avg": 287.94,
+      "benchmark_score": 711
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-203-gpu-1",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-203",
+    "metrics": {
+      "utilization_avg": 67,
+      "memory_used_avg": 94145,
+      "temperature_avg": 44,
+      "power_consumption_avg": 295.64,
+      "benchmark_score": 671
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-203-gpu-2",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-203",
+    "metrics": {
+      "utilization_avg": 74,
+      "memory_used_avg": 96583,
+      "temperature_avg": 44,
+      "power_consumption_avg": 275.06,
+      "benchmark_score": 741
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-203-gpu-3",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-203",
+    "metrics": {
+      "utilization_avg": 73,
+      "memory_used_avg": 90545,
+      "temperature_avg": 45,
+      "power_consumption_avg": 271.51,
+      "benchmark_score": 731
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-204-gpu-0",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-204",
+    "metrics": {
+      "utilization_avg": 79,
+      "memory_used_avg": 56917,
+      "temperature_avg": 45,
+      "power_consumption_avg": 251.33,
+      "benchmark_score": 791
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-204-gpu-1",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-204",
+    "metrics": {
+      "utilization_avg": 56,
+      "memory_used_avg": 133103,
+      "temperature_avg": 45,
+      "power_consumption_avg": 249.83,
+      "benchmark_score": 561
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-204-gpu-2",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-204",
+    "metrics": {
+      "utilization_avg": 57,
+      "memory_used_avg": 133103,
+      "temperature_avg": 44,
+      "power_consumption_avg": 236.15,
+      "benchmark_score": 571
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-204-gpu-3",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-204",
+    "metrics": {
+      "utilization_avg": 58,
+      "memory_used_avg": 133103,
+      "temperature_avg": 46,
+      "power_consumption_avg": 238.96,
+      "benchmark_score": 581
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-205-gpu-0",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-205",
+    "metrics": {
+      "utilization_avg": 61,
+      "memory_used_avg": 55849,
+      "temperature_avg": 40,
+      "power_consumption_avg": 204.99,
+      "benchmark_score": 611
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-205-gpu-1",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-205",
+    "metrics": {
+      "utilization_avg": 60,
+      "memory_used_avg": 139531,
+      "temperature_avg": 41,
+      "power_consumption_avg": 236.82,
+      "benchmark_score": 601
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-205-gpu-2",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-205",
+    "metrics": {
+      "utilization_avg": 68,
+      "memory_used_avg": 130449,
+      "temperature_avg": 43,
+      "power_consumption_avg": 225,
+      "benchmark_score": 681
+    }
+  },
+  {
+    "timestamp": "2026-01-22T20:37:05.450Z",
+    "month": "2026-01",
+    "gpuId": "cloud-205-gpu-3",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-205",
+    "metrics": {
+      "utilization_avg": 53,
+      "memory_used_avg": 142153,
+      "temperature_avg": 41,
+      "power_consumption_avg": 223.09,
+      "benchmark_score": 531
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "gpuName": "NVIDIA A100 80GB PCIe",
+    "nodeName": "cloud-243",
+    "metrics": {
+      "utilization_avg": 97,
+      "memory_used_avg": 19882,
+      "temperature_avg": 55,
+      "power_consumption_avg": 261.74,
+      "benchmark_score": 971
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "gpuName": "Tesla T4",
+    "nodeName": "cloud-243",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 308,
+      "temperature_avg": 35,
+      "power_consumption_avg": 27.4,
+      "benchmark_score": 1
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "gpuName": "NVIDIA H100 NVL",
+    "nodeName": "cloud-247",
+    "metrics": {
+      "utilization_avg": 63,
+      "memory_used_avg": 95302,
+      "temperature_avg": 66,
+      "power_consumption_avg": 253.15,
+      "benchmark_score": 631
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-202-gpu-0",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-202",
+    "metrics": {
+      "utilization_avg": 75,
+      "memory_used_avg": 43001,
+      "temperature_avg": 46,
+      "power_consumption_avg": 303.17,
+      "benchmark_score": 751
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-202-gpu-2",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-202",
+    "metrics": {
+      "utilization_avg": 69,
+      "memory_used_avg": 89635,
+      "temperature_avg": 44,
+      "power_consumption_avg": 279.07,
+      "benchmark_score": 691
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-202-gpu-3",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-202",
+    "metrics": {
+      "utilization_avg": 67,
+      "memory_used_avg": 89635,
+      "temperature_avg": 45,
+      "power_consumption_avg": 295.82,
+      "benchmark_score": 671
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-203-gpu-0",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-203",
+    "metrics": {
+      "utilization_avg": 87,
+      "memory_used_avg": 69677,
+      "temperature_avg": 47,
+      "power_consumption_avg": 324.93,
+      "benchmark_score": 871
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-203-gpu-1",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-203",
+    "metrics": {
+      "utilization_avg": 66,
+      "memory_used_avg": 94145,
+      "temperature_avg": 43,
+      "power_consumption_avg": 282.86,
+      "benchmark_score": 661
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-203-gpu-2",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-203",
+    "metrics": {
+      "utilization_avg": 72,
+      "memory_used_avg": 88825,
+      "temperature_avg": 45,
+      "power_consumption_avg": 259.7,
+      "benchmark_score": 721
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-203-gpu-3",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-203",
+    "metrics": {
+      "utilization_avg": 73,
+      "memory_used_avg": 90545,
+      "temperature_avg": 44,
+      "power_consumption_avg": 277.93,
+      "benchmark_score": 731
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-204-gpu-0",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-204",
+    "metrics": {
+      "utilization_avg": 46,
+      "memory_used_avg": 47093,
+      "temperature_avg": 43,
+      "power_consumption_avg": 233.66,
+      "benchmark_score": 465
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-204-gpu-1",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-204",
+    "metrics": {
+      "utilization_avg": 62,
+      "memory_used_avg": 132497,
+      "temperature_avg": 44,
+      "power_consumption_avg": 240.1,
+      "benchmark_score": 626
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-204-gpu-2",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-204",
+    "metrics": {
+      "utilization_avg": 56,
+      "memory_used_avg": 131359,
+      "temperature_avg": 43,
+      "power_consumption_avg": 222.81,
+      "benchmark_score": 561
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-204-gpu-3",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-204",
+    "metrics": {
+      "utilization_avg": 54,
+      "memory_used_avg": 132715,
+      "temperature_avg": 45,
+      "power_consumption_avg": 232.03,
+      "benchmark_score": 546
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-205-gpu-0",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-205",
+    "metrics": {
+      "utilization_avg": 64,
+      "memory_used_avg": 55849,
+      "temperature_avg": 41,
+      "power_consumption_avg": 210.88,
+      "benchmark_score": 641
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-205-gpu-1",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-205",
+    "metrics": {
+      "utilization_avg": 57,
+      "memory_used_avg": 140791,
+      "temperature_avg": 40,
+      "power_consumption_avg": 234.99,
+      "benchmark_score": 571
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-205-gpu-2",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-205",
+    "metrics": {
+      "utilization_avg": 60,
+      "memory_used_avg": 130449,
+      "temperature_avg": 42,
+      "power_consumption_avg": 235.13,
+      "benchmark_score": 601
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:09.898Z",
+    "month": "2026-01",
+    "gpuId": "cloud-205-gpu-3",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-205",
+    "metrics": {
+      "utilization_avg": 58,
+      "memory_used_avg": 142765,
+      "temperature_avg": 43,
+      "power_consumption_avg": 238.43,
+      "benchmark_score": 581
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-0",
+    "gpuName": "NVIDIA A100 80GB PCIe",
+    "nodeName": "cloud-243",
+    "metrics": {
+      "utilization_avg": 100,
+      "memory_used_avg": 19882,
+      "temperature_avg": 54,
+      "power_consumption_avg": 235.9,
+      "benchmark_score": 1001
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-243-gpu-1",
+    "gpuName": "Tesla T4",
+    "nodeName": "cloud-243",
+    "metrics": {
+      "utilization_avg": 0,
+      "memory_used_avg": 308,
+      "temperature_avg": 35,
+      "power_consumption_avg": 26.72,
+      "benchmark_score": 1
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-247-gpu-0",
+    "gpuName": "NVIDIA H100 NVL",
+    "nodeName": "cloud-247",
+    "metrics": {
+      "utilization_avg": 61,
+      "memory_used_avg": 95302,
+      "temperature_avg": 66,
+      "power_consumption_avg": 255.9,
+      "benchmark_score": 611
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-202-gpu-0",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-202",
+    "metrics": {
+      "utilization_avg": 81,
+      "memory_used_avg": 43001,
+      "temperature_avg": 49,
+      "power_consumption_avg": 318.46,
+      "benchmark_score": 811
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-202-gpu-1",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-202",
+    "metrics": {
+      "utilization_avg": 70,
+      "memory_used_avg": 89635,
+      "temperature_avg": 45,
+      "power_consumption_avg": 267.49,
+      "benchmark_score": 701
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-202-gpu-2",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-202",
+    "metrics": {
+      "utilization_avg": 67,
+      "memory_used_avg": 89635,
+      "temperature_avg": 44,
+      "power_consumption_avg": 289.76,
+      "benchmark_score": 671
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-202-gpu-3",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-202",
+    "metrics": {
+      "utilization_avg": 63,
+      "memory_used_avg": 89635,
+      "temperature_avg": 46,
+      "power_consumption_avg": 283.76,
+      "benchmark_score": 631
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-203-gpu-0",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-203",
+    "metrics": {
+      "utilization_avg": 90,
+      "memory_used_avg": 69677,
+      "temperature_avg": 46,
+      "power_consumption_avg": 320.48,
+      "benchmark_score": 901
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-203-gpu-1",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-203",
+    "metrics": {
+      "utilization_avg": 66,
+      "memory_used_avg": 94145,
+      "temperature_avg": 43,
+      "power_consumption_avg": 264.1,
+      "benchmark_score": 661
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-203-gpu-2",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-203",
+    "metrics": {
+      "utilization_avg": 69,
+      "memory_used_avg": 88825,
+      "temperature_avg": 45,
+      "power_consumption_avg": 257.51,
+      "benchmark_score": 691
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-203-gpu-3",
+    "gpuName": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "nodeName": "cloud-203",
+    "metrics": {
+      "utilization_avg": 61,
+      "memory_used_avg": 90545,
+      "temperature_avg": 44,
+      "power_consumption_avg": 255.69,
+      "benchmark_score": 611
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-204-gpu-0",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-204",
+    "metrics": {
+      "utilization_avg": 59,
+      "memory_used_avg": 47093,
+      "temperature_avg": 43,
+      "power_consumption_avg": 208.77,
+      "benchmark_score": 599
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-204-gpu-1",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-204",
+    "metrics": {
+      "utilization_avg": 59,
+      "memory_used_avg": 132497,
+      "temperature_avg": 44,
+      "power_consumption_avg": 236.72,
+      "benchmark_score": 591
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-204-gpu-2",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-204",
+    "metrics": {
+      "utilization_avg": 56,
+      "memory_used_avg": 131359,
+      "temperature_avg": 43,
+      "power_consumption_avg": 228.92,
+      "benchmark_score": 566
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-204-gpu-3",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-204",
+    "metrics": {
+      "utilization_avg": 54,
+      "memory_used_avg": 132715,
+      "temperature_avg": 45,
+      "power_consumption_avg": 223.04,
+      "benchmark_score": 541
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-205-gpu-0",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-205",
+    "metrics": {
+      "utilization_avg": 65,
+      "memory_used_avg": 55849,
+      "temperature_avg": 43,
+      "power_consumption_avg": 234.52,
+      "benchmark_score": 651
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-205-gpu-1",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-205",
+    "metrics": {
+      "utilization_avg": 56,
+      "memory_used_avg": 140791,
+      "temperature_avg": 40,
+      "power_consumption_avg": 238.66,
+      "benchmark_score": 561
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-205-gpu-2",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-205",
+    "metrics": {
+      "utilization_avg": 58,
+      "memory_used_avg": 130449,
+      "temperature_avg": 42,
+      "power_consumption_avg": 229.55,
+      "benchmark_score": 581
+    }
+  },
+  {
+    "timestamp": "2026-01-22T22:02:14.018Z",
+    "month": "2026-01",
+    "gpuId": "cloud-205-gpu-3",
+    "gpuName": "NVIDIA H200 NVL",
+    "nodeName": "cloud-205",
+    "metrics": {
+      "utilization_avg": 52,
+      "memory_used_avg": 142765,
+      "temperature_avg": 42,
+      "power_consumption_avg": 243.65,
+      "benchmark_score": 521
+    }
   }
 ]

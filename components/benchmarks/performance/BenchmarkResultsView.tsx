@@ -1,6 +1,9 @@
 import React from 'react';
 import { HiCheckCircle, HiXCircle, HiClock, HiRefresh, HiServer, HiTerminal } from 'react-icons/hi';
+import useSWR from 'swr';
 import MonthlyComparisonChart, { MonthlyBenchmarkData } from './MonthlyComparisonChart';
+
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export interface BenchmarkResult {
   gpuId: string;
@@ -28,19 +31,23 @@ interface Props {
   status?: string;
   logs?: { timestamp: number; message: string }[];
   onRetry?: () => void;
+  benchmarkId?: string | null;
 }
 
-export default function BenchmarkResultsView({ results, monthlyData = [], isRunning, currentGpu, status, logs = [], onRetry }: Props) {
+export default function BenchmarkResultsView({ results, monthlyData = [], isRunning, currentGpu, status, logs = [], onRetry, benchmarkId }: Props) {
   const [selectedMetric, setSelectedMetric] = React.useState<'utilization' | 'memory' | 'temperature' | 'power' | 'score'>('utilization');
+  const [isCancelling, setIsCancelling] = React.useState(false);
   const logsEndRef = React.useRef<HTMLDivElement>(null);
+
+  const { data: clusterData } = useSWR<{ nodes: { name: string, hasGpu: boolean }[] }>('/api/cluster-nodes', fetcher);
+  const nodes = React.useMemo(() => clusterData?.nodes.map(n => n.name) || ["cloud-202", "cloud-203", "cloud-204", "cloud-205", "cloud-243", "cloud-247"], [clusterData]);
 
   React.useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  if (status === 'initializing' || status === 'stopping_jobs' || status === 'ready') {
+  if (status === 'initializing' || status === 'stopping_jobs' || status === 'ready' || status === 'cancelled') {
     // Parse logs to determine node status
-    const nodes = ["cloud-243", "cloud-247", "cloud-244", "cloud-248"];
     const nodeStatus = nodes.reduce((acc, node) => {
       const nodeLogs = logs.filter(l => l.message.includes(node));
       let state = 'waiting'; // waiting, processing, error, done
@@ -55,10 +62,11 @@ export default function BenchmarkResultsView({ results, monthlyData = [], isRunn
         if (nodeLogs.some(l => l.message.includes('Stopping user processes'))) detail = 'Stopping Jobs...';
 
         // Detect Errors
-        if (nodeLogs.some(l => l.message.includes('Error') || l.message.includes('failed') || l.message.includes('WARNING'))) {
+        if (nodeLogs.some(l => l.message.includes('Error') || l.message.includes('failed') || l.message.includes('WARNING') || l.message.includes('SKIPPING'))) {
           state = 'error';
           detail = 'Attention Needed';
           if (nodeLogs.some(l => l.message.includes('authentication'))) detail = 'Auth Failed';
+          if (nodeLogs.some(l => l.message.includes('SKIPPING'))) detail = 'Skipped';
         }
 
         // Detect Success - MUST be last to override warnings if the system proceeded anyway
@@ -72,18 +80,15 @@ export default function BenchmarkResultsView({ results, monthlyData = [], isRunn
       return acc;
     }, {} as Record<string, { state: string, detail: string }>);
 
-    const readyCount = nodes.filter(n => nodeStatus[n].state === 'done').length;
-    const errorCount = nodes.filter(n => nodeStatus[n].state === 'error').length;
-    const isGlobalError = errorCount > 0;
+    const readyCount = nodes.filter(n => nodeStatus[n] && nodeStatus[n].state === 'done').length;
+    const errorCount = nodes.filter(n => nodeStatus[n] && nodeStatus[n].state === 'error').length;
+    const isGlobalError = errorCount > 0 && readyCount === 0; // Only major error if NO nodes are ready
 
     return (
       <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500 max-w-6xl mx-auto">
 
         {/* Main Status Container */}
-        <div className="relative overflow-hidden rounded-2xl border border-gray-800 bg-gray-950/80 backdrop-blur-xl shadow-2xl">
-          {/* Background Decor */}
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 opacity-50" />
-          <div className="absolute -top-24 -right-24 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-pulse-slow" />
+        <div className="relative overflow-hidden rounded-xl border border-gray-800 bg-[#0f1117] shadow-xl">
 
           <div className="p-8">
             {/* Header */}
@@ -101,14 +106,16 @@ export default function BenchmarkResultsView({ results, monthlyData = [], isRunn
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-white tracking-tight font-display mb-1">
-                    {isGlobalError ? 'Initialization Issue Detected' : 'Initializing Benchmark'}
+                    {isGlobalError ? 'Initialization Issue Detected' : status === 'cancelled' ? 'Benchmark Stopped' : 'Initializing Benchmark'}
                   </h2>
                   <p className="text-gray-400 text-sm font-medium flex items-center gap-2">
                     {isGlobalError
                       ? <span className="text-red-400">One or more nodes failed preparation.</span>
-                      : status === 'ready'
-                        ? <span className="text-green-400 font-bold">All nodes prepared. Starting benchmark...</span>
-                        : <span className="text-cyan-400">Stopping active jobs and verifying cluster state...</span>
+                      : status === 'cancelled'
+                        ? <span className="text-orange-400 font-bold">Process terminated by user request.</span>
+                        : status === 'ready'
+                          ? <span className="text-green-400 font-bold">All nodes prepared. Starting benchmark...</span>
+                          : <span className="text-cyan-400">Stopping active jobs and verifying cluster state...</span>
                     }
                   </p>
                 </div>
@@ -121,13 +128,38 @@ export default function BenchmarkResultsView({ results, monthlyData = [], isRunn
                     {readyCount} / {nodes.length} Nodes Ready
                   </span>
                 </div>
-                {isGlobalError && onRetry && (
+                {(isGlobalError || status === 'cancelled') && onRetry && (
                   <button
                     onClick={onRetry}
-                    className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-bold shadow-lg shadow-red-900/20 transition-all flex items-center gap-2"
+                    className={`px-4 py-2 rounded-lg ${status === 'cancelled' ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-red-600 hover:bg-red-500'} text-white text-sm font-bold shadow-lg transition-all flex items-center gap-2`}
                   >
                     <HiRefresh className="w-4 h-4" />
-                    Retry
+                    {status === 'cancelled' ? 'Start Over' : 'Retry'}
+                  </button>
+                )}
+                {!isGlobalError && status !== 'ready' && status !== 'cancelled' && benchmarkId && (
+                  <button
+                    onClick={async () => {
+                      if (confirm('Are you sure you want to stop the benchmark process?')) {
+                        setIsCancelling(true);
+                        try {
+                          await fetch('/api/performance-benchmark/cancel', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ benchmarkId }),
+                          });
+                        } catch (e) {
+                          console.error('Failed to cancel:', e);
+                        } finally {
+                          setIsCancelling(false);
+                        }
+                      }
+                    }}
+                    disabled={isCancelling}
+                    className="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-red-400 text-sm font-bold border border-gray-700 hover:border-red-500/50 shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <HiXCircle className={`w-4 h-4 ${isCancelling ? 'animate-spin' : ''}`} />
+                    {isCancelling ? 'Stopping...' : 'Stop Benchmark'}
                   </button>
                 )}
               </div>
@@ -142,10 +174,10 @@ export default function BenchmarkResultsView({ results, monthlyData = [], isRunn
                 const isProcessing = state === 'processing';
 
                 return (
-                  <div key={node} className={`group relative p-5 rounded-xl border backdrop-blur-sm transition-all duration-300 ${isError ? 'bg-red-950/10 border-red-500/30 hover:border-red-500/50' :
-                    isDone ? 'bg-green-950/10 border-green-500/30 hover:border-green-500/50' :
-                      isProcessing ? 'bg-cyan-950/10 border-cyan-500/30 hover:border-cyan-500/50' :
-                        'bg-gray-900/40 border-gray-800 hover:border-gray-700'
+                  <div key={node} className={`group relative p-4 rounded-lg border transition-all duration-300 ${isError ? 'bg-red-950/5 border-red-500/20' :
+                    isDone ? 'bg-green-950/5 border-green-500/20' :
+                      isProcessing ? 'bg-cyan-950/5 border-cyan-500/20' :
+                        'bg-gray-950/30 border-gray-800'
                     }`}>
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-2">
@@ -183,7 +215,7 @@ export default function BenchmarkResultsView({ results, monthlyData = [], isRunn
             </div>
 
             {/* Logs Section */}
-            <div className="bg-black/80 rounded-xl border border-gray-800/80 shadow-inner overflow-hidden">
+            <div className="bg-black/40 rounded-lg border border-gray-800 overflow-hidden">
               <div className="px-4 py-2 bg-gray-900/50 border-b border-gray-800 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest">
                   <HiTerminal className="w-4 h-4" />
@@ -278,14 +310,42 @@ export default function BenchmarkResultsView({ results, monthlyData = [], isRunn
 
       {/* Current Progress */}
       {isRunning && currentGpu && (
-        <div className="bg-cyan-900/20 border border-cyan-500/30 rounded-lg p-4 flex items-center gap-4 animate-pulse-slow">
-          <div className="p-2 bg-cyan-500/10 rounded-full">
-            <div className="w-5 h-5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+        <div className="bg-cyan-900/20 border border-cyan-500/30 rounded-lg p-4 flex items-center justify-between gap-4 animate-pulse-slow">
+          <div className="flex items-center gap-4">
+            <div className="p-2 bg-cyan-500/10 rounded-full">
+              <div className="w-5 h-5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+            <div>
+              <p className="text-cyan-300 font-semibold">Benchmark in progress...</p>
+              <p className="text-cyan-400/80 text-sm">Currently testing: {currentGpu}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-cyan-300 font-semibold">Benchmark in progress...</p>
-            <p className="text-cyan-400/80 text-sm">Currently testing: {currentGpu}</p>
-          </div>
+
+          {benchmarkId && (
+            <button
+              onClick={async () => {
+                if (confirm('Are you sure you want to stop the benchmark?')) {
+                  setIsCancelling(true);
+                  try {
+                    await fetch('/api/performance-benchmark/cancel', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ benchmarkId }),
+                    });
+                  } catch (e) {
+                    console.error('Failed to cancel:', e);
+                  } finally {
+                    setIsCancelling(false);
+                  }
+                }
+              }}
+              disabled={isCancelling}
+              className="px-4 py-2 rounded-lg bg-gray-900/50 hover:bg-red-900/30 text-red-400 text-sm font-bold border border-gray-800 hover:border-red-500/50 transition-all flex items-center gap-2 disabled:opacity-50"
+            >
+              <HiXCircle className={`w-4 h-4 ${isCancelling ? 'animate-spin' : ''}`} />
+              {isCancelling ? 'Stopping...' : 'Stop Benchmark'}
+            </button>
+          )}
         </div>
       )}
 

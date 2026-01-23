@@ -182,15 +182,26 @@ export async function fetchClusterStats(node: NodeConfig, ssh?: NodeSSH) {
     });
   }
 
-  const STORAGE_CMD = "df -hT | grep -E 'ceph|nfs|/scratch' || true";
+  const STORAGE_CMD = "df -hT | grep -E 'ceph|nfs|/scratch|/home|/windows-home' || df -hT | grep -E '^/dev/sd|^/dev/nvme' || true";
   const storageOutput = await runCommand(node, STORAGE_CMD, 43000, ssh);
   const volumes: StorageVolume[] = [];
 
   const parseToTib = (str: string) => {
+    if (!str) return 0;
     const val = parseFloat(str);
-    if (str.includes('T')) return val;
-    if (str.includes('G')) return val / 1024;
-    return 0;
+    if (isNaN(val)) return 0;
+
+    const lower = str.toUpperCase();
+    if (lower.includes('P')) return val * 1024;
+    if (lower.includes('T')) return val;
+    if (lower.includes('G')) return val / 1024;
+    if (lower.includes('M')) return val / (1024 * 1024);
+    if (lower.includes('K')) return val / (1024 * 1024 * 1024);
+
+    // Default to Tib if value is large and no unit, but safer to assume Gib if ambiguous?
+    // Most df -h outputs have units. If no unit, it's usually bytes or blocks.
+    // Let's assume raw number is GiB if it's over 100, else TiB? No, too risky.
+    return val;
   };
 
   if (storageOutput && storageOutput.trim()) {
@@ -206,7 +217,11 @@ export async function fetchClusterStats(node: NodeConfig, ssh?: NodeSSH) {
     });
   }
 
-  return { partitions, volumes };
+  const finalVolumes = volumes.filter(v =>
+    ['/home', '/scratch', '/windows-home'].includes(v.mount_point)
+  );
+
+  return { partitions, volumes: finalVolumes };
 }
 
 export async function fetchUserStorage(node: NodeConfig, targetDir: string, ssh?: NodeSSH): Promise<UserStorage[]> {
