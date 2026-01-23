@@ -19,8 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 1. Try to read the status file if runId is provided
     if (runId) {
-      const remotePath = getInstallPath(targetNode.name);
-      const APP_ROOT = remotePath;
+      const APP_ROOT = getInstallPath(targetNode.name);;
       const statusFile = `${APP_ROOT}/logs/${runId}_status.json`;
 
       try {

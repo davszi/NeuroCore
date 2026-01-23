@@ -22,9 +22,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Generate Run ID
   const ts = Math.floor(Date.now() / 1000);
   const runId = `run_${ts}`;
-  const remotePath = getInstallPath(targetNode.name);
 
-  const APP_ROOT = remotePath;
+  const APP_ROOT = getInstallPath(targetNode.name);
   const CACHE_ROOT = `${APP_ROOT}/caches`;
   const OUTPUT_ROOT = `${APP_ROOT}/outputs`;
   const LOGS_ROOT = `${APP_ROOT}/logs`;

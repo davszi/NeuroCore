@@ -12,8 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const targetNode = CLUSTER_NODES.find(n => n.name === targetNodeName) as unknown as NodeConfig;
-    const remotePath = getInstallPath(targetNode.name);
-    const APP_ROOT = remotePath;
+    const APP_ROOT = getInstallPath(targetNode.name);;
     const OUTPUTS_DIR = `${APP_ROOT}/outputs`;
 
     // 1. List all directories starting with "run_", sorted by time (newest first)
