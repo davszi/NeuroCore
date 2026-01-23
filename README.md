@@ -1,123 +1,197 @@
-# NeuroCore Dashboard (Workstream B)
+# NeuroCore Dashboard
 
-This is the official front-end dashboard for the NeuroCore GenAI cluster project. It provides a read-only interface to monitor cluster nodes, jobs, and resource utilization.
+NeuroCore is a specialized cluster management and ML benchmarking dashboard. It orchestrates training jobs, monitors GPU/Node health via SSH, and provides real-time performance analytics.
 
-**Built with:**
-* **Framework:** Next.js (v15) using the Pages Router.
-* **Language:** TypeScript.
-* **Styling:** Tailwind CSS (v4).
-* **Data Fetching:** SWR for live data polling and caching.
-* **State Management:** React Context.
-* **Icons:** `react-icons`.
-
----
-
-## ✨ Features
-
-* **Live Data Connection:** Connects to a local simulation environment (Workstream A) via Next.js API routes (`/api/cluster-state` and `/api/jobs`).
-* **Auto-Refreshing:** Uses SWR to fetch updated cluster state and job information every 5 seconds.
-* **Fallback Mechanism:** If the simulation environment is not running or the API fails, the dashboard gracefully falls back to displaying static mock data defined in `/context/ClusterContext.tsx`.
-* **Responsive Design:** The UI adapts to different screen sizes, including a mobile-friendly navigation menu.
-* **Current Components:**
-    * **Dashboard Page:** Shows an overview, including live GPU Node Cards.
-    * **Jobs Page:** Displays a table of active simulated jobs fetched from the simulation.
-    * **Monitoring Page:** Provides a detailed view of all GPU Node Cards.
-    * **Logs Page:** (Placeholder for future development).
-
----
-
-## 💻 Running the Dashboard (Workstream B - UI Only)
-
-Follow these instructions to run *just* the Next.js dashboard application. It will attempt to connect to the simulation API, but will fall back to mock data if the simulation isn't running.
+## 🚀 Getting Started
 
 ### Prerequisites
 
-* [Node.js](https://nodejs.org/) (Version 20.x or later recommended).
+* [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/)
+* Git
 
-### Installation & Running
+### 1. Clone the Repository
 
-1.  **Clone the repository:**
-    ```bash
-    git clone [https://github.com/davszi/NeuroCore.git](https://github.com/davszi/NeuroCore.git)
-    cd NeuroCore
-    ```
+```bash
+git clone https://github.com/davszi/NeuroCore.git
+cd Neurocore
 
-2.  **Navigate to the Dashboard directory:**
-    ```bash
-    cd Dashboard
-    ```
+```
 
-3.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+### 2. Configure Environment
 
-4.  **Run the development server:**
-    * Uses the stable `next dev` server.
-    ```bash
-    npm run dev
-    ```
+Create a `.env` file:
 
-5.  **Open your browser:**
-    * Navigate to [http://localhost:3000](http://localhost:3000). You will likely see a "Connection Error" message initially, indicating it's using fallback data.
+```bash
+cp .env.example .env
+
+```
+
+**Required Variables:**
+
+```ini
+# SSH Credentials for the Cluster Nodes
+SSH_USER=your_username
+SSH_PASSWORD=your_cluster_password
+
+# Public URL 
+NEXT_PUBLIC_API_URL=http://localhost:3000
+
+```
 
 ---
+
+## 🛠️ Local Development (Docker)
+
+We use Docker to containerize the dashboard while keeping the data and ML scripts persistent.
+
+### Run with Docker Compose
+
+```bash
+docker-compose up -d --build
+
+```
+
+* **Dashboard**: Open `http://localhost:3000`
+* **Hot Reloading**: The `benchmark-ml` folder is mounted as a volume. You can edit Python scripts locally, and the container will see the changes immediately.
+* **Data Persistence**: Benchmark history and snapshots are saved to `./data`.
+
+### Stop the App
+
+```bash
+docker-compose down
+
+```
+
 ---
 
-## 🐳 Running the Full Simulation (Workstream A + B)
+## 🌍 Production Deployment (VPS)
 
-Follow these instructions to run the **complete system**: the Docker-based cluster simulation (Workstream A) and the Dashboard UI (Workstream B) connected to it.
+### 1. Prepare the VPS
 
-### Prerequisites
+1. SSH to VPS.
+2. Clone the repository and `cd` into it.
+3. Create `.env` file with production SSH credentials.
 
-* [Node.js](https://nodejs.org/) (Version 20.x or later recommended).
-* [Docker Desktop](https://www.docker.com/products/docker-desktop/) **installed and running**.
+### 2. Create Caddy Configuration
 
-### Running the System (Two Terminals Required)
+Create a file named `Caddyfile`:
 
-You need **two separate terminal windows** open in your `NeuroCore` project directory.
+```caddyfile
+domain.com {
+    # Reverse proxy to the neurocore container
+    reverse_proxy neurocore:3000
+}
 
-#### Terminal 1: Start the Simulation (Workstream A)
+```
 
-1.  **Navigate to the `Simulation_Env` directory:**
-    ```bash
-    cd Simulation_Env
-    ```
-2.  **Build and start the Docker containers:**
-    * The `--build` flag is needed the first time or after code changes.
-    ```bash
-    docker-compose up --build
-    ```
-3.  **Wait for the logs:** You will see output as the containers start. Wait until you see repeating logs from the `observer-1` service, confirming it's polling for data (e.g., `Successfully wrote 4 jobs...`).
-4.  **Keep this terminal running.**
+### 3. Create Production Compose File
 
-#### Terminal 2: Start the Dashboard (Workstream B)
+Create a `docker-compose.prod.yml` file:
 
-1.  **Navigate to the `Dashboard` directory:**
-    * Make sure you are in the correct directory for this terminal.
-    ```bash
-    cd ../Dashboard
-    ```
-2.  **Install dependencies (if you haven't already):**
-    ```bash
-    npm install
-    ```
-3.  **Run the development server:**
-    ```bash
-    npm run dev
-    ```
+```yaml
+version: '3.8'
 
-#### View the Live Dashboard
+services:
+  neurocore:
+    container_name: neurocore-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - ./benchmark-ml:/app/benchmark-ml
+    # No ports exposed directly to host, only to internal network
 
-1.  **Open your browser:**
-    * Navigate to [http://localhost:3000](http://localhost:3000).
-2.  **Verify Connection:** The dashboard should now show a **"Live Connection"** status, and the displayed metrics and jobs will be coming directly from your running Docker simulation, updating every 5 seconds.
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "443:443/tcp"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - neurocore
 
-### Stopping the System
+volumes:
+  caddy_data:
+  caddy_config:
 
-1.  **Stop the Dashboard:** Press `Ctrl + C` in Terminal 2.
-2.  **Stop the Simulation:** Press `Ctrl + C` in Terminal 1.
-3.  **Clean up Docker containers:** Run this command in Terminal 1 (from the `Simulation_Env` directory):
-    ```bash
-    docker-compose down
-    ```
+```
+
+### 4. Deploy
+
+Run the production stack:
+
+```bash
+docker-compose -f docker-compose.prod.yml up -d --build
+
+```
+
+App will now be available at `https://domain.com`. Caddy will automatically acquire and renew SSL certificates.
+
+---
+
+## ⚙️ Configuration Management
+
+### How to Change SSH Credentials
+
+To change the user or password used to connect to the compute nodes:
+
+1. Open the `.env` file.
+2. Update `SSH_USER` or `SSH_PASSWORD`.
+3. Restart the container:
+```bash
+docker-compose restart
+
+```
+
+
+
+### How to Add/Remove Nodes
+
+The node list is hardcoded in the configuration file to ensure stability.
+
+1. Open `lib/config.ts`.
+2. Locate the `CLUSTER_NODES` array.
+3. Add a new object for node:
+```typescript
+{
+  name: "new-node-01",
+  host: "192.168.1.50", // Hostname or IP
+  port: 22,
+  hasGpu: true,         // Set false for login/head nodes
+  user: "mw86"          // Specific user if different from global default
+},
+
+```
+
+
+4. **Rebuild the container** (Required because this is baked into the Next.js build):
+```bash
+docker-compose up -d --build
+
+```
+
+
+
+### How to Change GPU Specs
+
+If you add new hardware types, update the inventory:
+
+1. Open `lib/config.ts`.
+2. Update `GPU_INVENTORY` to map the node name to its hardware specs (Power limit, VRAM, etc.).
+
+---
+
+## 📂 Project Structure
+
+* `benchmark-ml/` - Python training scripts & HuggingFace logic.
+* `components/` - React UI components (Charts, Modals, Tables).
+* `lib/` - Backend logic (SSH, Data Fetching, Syncing).
+* `pages/api/` - Next.js API Routes (The bridge between UI and Cluster).
+* `data/` - (Generated) Stores historical benchmark logs and node snapshots.
