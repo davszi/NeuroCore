@@ -357,6 +357,7 @@ export default function BenchmarksPage() {
               status={benchmarkStatus?.status}
               logs={benchmarkStatus?.logs}
               onRetry={() => setPerfBenchmarkModalOpen(true)}
+              benchmarkId={currentBenchmarkId}
             />
           </div>
         )}
@@ -388,13 +389,68 @@ function LoadingSkeleton() {
 
 function ParameterWiseView({ data, nodeKeys, range }: { data: BenchmarkDataPoint[]; nodeKeys: string[]; range: string }) {
   const chartConfig = [
-    { title: "GPU Utilization", keySuffix: "_util", unit: "%", yDomain: [0, 100] as [number, number], color: "#06b6d4" },
-    { title: "VRAM Usage", keySuffix: "_vram", unit: " GB", yDomain: ["auto", "auto"] as const, color: "#eab308" },
-    { title: "GPU Temperature", keySuffix: "_temp", unit: "°C", yDomain: ["auto", "auto"] as const, color: "#f43f5e" },
+    { title: "GPU Utilization", keySuffix: "_util", unit: "%", yDomain: [0, 100] as [number, number] },
+    { title: "VRAM Usage", keySuffix: "_vram", unit: " GB", yDomain: ["auto", "auto"] as const },
+    { title: "GPU Temperature", keySuffix: "_temp", unit: "°C", yDomain: ["auto", "auto"] as const },
   ];
 
-  const nodeColors = ["#3b82f6", "#ef4444", "#eab308", "#10b981", "#8b5cf6", "#f97316", "#06b6d4"];
+  // Ultra-expanded color palette to ensure uniqueness across large clusters (40+ colors)
+  const colors = [
+    "#3b82f6", "#ef4444", "#fbbf24", "#10b981", "#8b5cf6", "#f97316", "#06b6d4",
+    "#ec4899", "#6366f1", "#14b8a6", "#f59e0b", "#84cc16", "#d946ef", "#0ea5e9",
+    "#f43f5e", "#22c55e", "#a855f7", "#64748b", "#cbd5e1", "#475569",
+    "#94a3b8", "#f87171", "#fb923c", "#fbbf24", "#a3e635", "#4ade80", "#2dd4bf",
+    "#22d3ee", "#38bdf8", "#818cf8", "#a78bfa", "#c084fc", "#e879f9", "#f472b6",
+    "#fb7185", "#57534e", "#a8a29e", "#d6d3d1", "#e7e5e4", "#f5f5f4"
+  ];
 
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
+
+  // Group nodeKeys by node name for the legend
+  const groupedKeys = useMemo(() => {
+    const groups: Record<string, string[]> = {};
+    nodeKeys.forEach(key => {
+      // Robustly extract node name: cloud-243-0 or cloud-243-gpu-0 -> cloud-243
+      const parts = key.split('-');
+      let nodeName = key;
+      if (parts[0] === 'cloud' && parts[1]) {
+        nodeName = `cloud-${parts[1]}`;
+      } else if (parts.length > 1) {
+        nodeName = parts.slice(0, parts.length - 1).join('-');
+      }
+
+      if (!groups[nodeName]) groups[nodeName] = [];
+      groups[nodeName].push(key);
+    });
+
+    // Sort nodes by name (natural order)
+    return Object.fromEntries(
+      Object.entries(groups).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+    );
+  }, [nodeKeys]);
+
+  const toggleKey = (key: string) => {
+    setHiddenKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleNode = (nodeName: string) => {
+    const keys = groupedKeys[nodeName];
+    const allHidden = keys.every(k => hiddenKeys.has(k));
+    setHiddenKeys(prev => {
+      const next = new Set(prev);
+      keys.forEach(k => {
+        if (allHidden) next.delete(k);
+        else next.add(k);
+      });
+      return next;
+    });
+  };
 
   const { ticks, domain } = useMemo(() => {
     const end = Date.now();
@@ -404,19 +460,16 @@ function ParameterWiseView({ data, nodeKeys, range }: { data: BenchmarkDataPoint
     if (range === '7d') {
       start = end - 7 * 24 * 60 * 60 * 1000;
       generatedTicks = [];
-      // Generate 7 ticks for the last 7 days
       for (let i = 6; i >= 0; i--) {
         generatedTicks.push(end - i * 24 * 60 * 60 * 1000);
       }
     } else if (range === '1y') {
       start = end - 365 * 24 * 60 * 60 * 1000;
       generatedTicks = [];
-      // Generate 12 ticks for the last 12 months
       for (let i = 11; i >= 0; i--) {
         generatedTicks.push(end - i * 30 * 24 * 60 * 60 * 1000);
       }
     } else if (data.length > 0) {
-      // Default auto domain for today or other ranges
       start = Math.min(...data.map(d => d.timestamp));
     }
 
@@ -427,69 +480,146 @@ function ParameterWiseView({ data, nodeKeys, range }: { data: BenchmarkDataPoint
   }, [data, range]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {chartConfig.map((config) => (
-        <div key={config.title} className="bg-gray-900 border border-gray-800 rounded-lg p-5 shadow-sm">
-          <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between border-b border-gray-800 pb-2">
-            <div>
-              <h3 className="text-sm font-bold text-white tracking-wide">{config.title}</h3>
-              <p className="text-[10px] text-gray-500 uppercase mt-0.5 mb-2 md:mb-0">Unit: {config.unit.trim()}</p>
-            </div>
-
-            {/* Custom Header Legend */}
-            <div className="flex flex-wrap gap-3 mt-1.5 md:mt-0 justify-end">
-              {nodeKeys.slice(0, 4).map((nodeKey, idx) => (
-                <div key={nodeKey} className="flex items-center gap-1.5">
-                  <span
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: nodeColors[idx % nodeColors.length] }}
-                  />
-                  <span className="text-[10px] text-gray-400 uppercase">
-                    {nodeKey.replace(/cloud-|gpu\s?/gi, '').replace('-', '')}
-                  </span>
-                </div>
-              ))}
-            </div>
+    <div className="space-y-6">
+      {/* Dynamic Summary Header */}
+      <div className="bg-gray-950/40 border border-gray-800 rounded-lg p-3 mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Active Nodes</span>
+            <span className="text-xl font-bold text-white">{Object.keys(groupedKeys).length}</span>
           </div>
-          <div className="h-60 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
-                <defs>
-                  {nodeKeys.map((nodeKey, idx) => (
-                    <linearGradient key={nodeKey} id={`gradient-${config.keySuffix}-${idx}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={nodeColors[idx % nodeColors.length]} stopOpacity={0.3} />
-                      <stop offset="95%" stopColor={nodeColors[idx % nodeColors.length]} stopOpacity={0} />
-                    </linearGradient>
-                  ))}
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.3} />
-                <XAxis
-                  dataKey="timestamp"
-                  tickFormatter={(ts) => formattedDate(ts, range)}
-                  stroke="#525252"
-                  tick={{ fontSize: 10, fill: "#737373" }}
-                  tickLine={false}
-                  axisLine={false}
-                  minTickGap={range === 'today' ? 60 : 10}
-                  ticks={ticks}
-                  domain={domain as any}
-                  type="number"
-                  interval={ticks ? 0 : 'preserveStartEnd'}
-                />
-                <YAxis stroke="#525252" tick={{ fontSize: 10, fill: "#9ca3af" }} tickLine={false} axisLine={false} domain={config.yDomain} width={35} />
-                <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#1e293b", borderRadius: "6px", fontSize: "12px", color: "#f1f5f9" }} labelFormatter={(ts) => new Date(ts).toLocaleString()} formatter={(value: number, name: string) => [value.toFixed(1) + config.unit, name.replace('-', ' ')]} itemStyle={{ padding: 0 }} />
-                {nodeKeys.map((nodeKey, idx) => (
-                  <Area key={nodeKey} type="monotone" dataKey={`${nodeKey}${config.keySuffix}`} name={nodeKey.replace("-", " ")} stroke={nodeColors[idx % nodeColors.length]} fill={`url(#gradient-${config.keySuffix}-${idx})`} strokeWidth={2} activeDot={{ r: 4, strokeWidth: 0 }} fillOpacity={1} connectNulls={true} />
-                ))}
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="h-8 w-px bg-gray-800" />
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Live GPUs</span>
+            <span className="text-xl font-bold text-cyan-400">{nodeKeys.length}</span>
           </div>
         </div>
-      ))}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setHiddenKeys(new Set())}
+            className="px-3 py-1 rounded text-[10px] font-bold bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition-all uppercase"
+          >
+            Show All
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-8">
+        {chartConfig.map((config) => (
+          <div key={config.title} className="bg-[#0f1117] border border-gray-800/40 rounded-xl overflow-hidden p-6 shadow-2xl flex flex-col h-[480px]">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h3 className="text-xs font-bold text-gray-200 tracking-wider uppercase">{config.title}</h3>
+                <p className="text-[10px] text-gray-500 font-mono mt-0.5 uppercase tracking-widest">UNIT: {config.unit}</p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-x-4 gap-y-1.5 max-w-[70%]">
+                {Object.entries(groupedKeys).map(([nodeName, keys]) => (
+                  <div
+                    key={nodeName}
+                    className="flex items-center gap-1.5 cursor-pointer group"
+                    onClick={() => toggleNode(nodeName)}
+                    onMouseEnter={() => setHoveredKey(nodeName)}
+                    onMouseLeave={() => setHoveredKey(null)}
+                  >
+                    <span className="text-[8px] font-bold text-gray-500 group-hover:text-white transition-colors uppercase tracking-[0.1em]">
+                      {nodeName.replace('cloud-', 'NODE ')}
+                    </span>
+                    <div className="flex gap-0.5">
+                      {keys.map((key) => {
+                        const idx = nodeKeys.indexOf(key);
+                        const isHidden = hiddenKeys.has(key);
+                        return (
+                          <div
+                            key={key}
+                            className={`w-3.5 h-1 rounded-sm transition-all ${isHidden ? 'bg-gray-800/50' : ''}`}
+                            style={{ backgroundColor: isHidden ? undefined : colors[idx % colors.length] }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 min-h-0 relative">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff" vertical={false} opacity={0.03} />
+                  <XAxis
+                    dataKey="timestamp"
+                    type="number"
+                    domain={domain}
+                    ticks={ticks}
+                    stroke="#4b5563"
+                    tick={{ fontSize: 9, fill: "#4b5563" }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(unixTime) => formattedDate(unixTime, range)}
+                    scale="time"
+                  />
+                  <YAxis
+                    stroke="#4b5563"
+                    tick={{ fontSize: 9, fill: "#4b5563" }}
+                    tickLine={false}
+                    axisLine={false}
+                    domain={config.yDomain}
+                    width={45}
+                  />
+                  <Tooltip
+                    cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
+                    contentStyle={{
+                      backgroundColor: "#0f1117",
+                      borderColor: "#1f2937",
+                      borderRadius: "8px",
+                      fontSize: "10px",
+                      color: "#f3f4f6",
+                      boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
+                      padding: "8px 12px"
+                    }}
+                    labelFormatter={(label) => new Date(label).toLocaleString()}
+                    formatter={(value: number, name: string, props: any) => [
+                      <div className="flex items-center gap-2" key={name}>
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: props.color }}
+                        />
+                        <span className="text-gray-400 uppercase text-[9px] tracking-wider">{name.replace("-", " ")}</span>
+                        <span className="font-bold text-white ml-auto">{value.toFixed(1)}{config.unit}</span>
+                      </div>,
+                      null // Suppress default name rendering
+                    ]}
+                  />
+                  {nodeKeys.map((nodeKey, idx) => {
+                    const isHidden = hiddenKeys.has(nodeKey);
+                    if (isHidden) return null;
+                    const isHighlighted = !hoveredKey || nodeKey === hoveredKey || nodeKey.startsWith(hoveredKey + '-');
+
+                    return (
+                      <Area
+                        key={nodeKey}
+                        type="monotone"
+                        dataKey={`${nodeKey}${config.keySuffix}`}
+                        stroke={colors[idx % colors.length]}
+                        strokeWidth={isHighlighted ? 3 : 1.5}
+                        fill="transparent"
+                        strokeOpacity={isHighlighted ? 1 : 0.4}
+                        dot={false}
+                        activeDot={{ r: 3, strokeWidth: 0, fill: colors[idx % colors.length] }}
+                        connectNulls={true}
+                        animationDuration={500}
+                        name={nodeKey.replace('cloud-', 'NODE ').replace('-', ' GPU ')}
+                      />
+                    );
+                  })}
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
-
-
 }
 
 function NodeWiseView({ nodes, range }: { nodes: NodeData[]; range: string }) {
@@ -520,47 +650,73 @@ function NodeWiseView({ nodes, range }: { nodes: NodeData[]; range: string }) {
 
   if (nodes.length === 0) return null;
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {nodes.map((node) => (
-        <div key={node.id} className="bg-gray-900 border border-gray-800 rounded-lg p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between border-b border-gray-800 pb-2">
-            <div>
-              <h3 className="text-sm font-bold text-white tracking-wide">{node.name}</h3>
-              <div className="flex gap-3 mt-1.5">
-                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span><span className="text-[10px] text-gray-400 uppercase">Util</span></div>
-                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span><span className="text-[10px] text-gray-400 uppercase">VRAM</span></div>
-                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span><span className="text-[10px] text-gray-400 uppercase">Temp</span></div>
+        <div key={node.id} className="bg-[#0f1117] border border-gray-800/40 rounded-xl overflow-hidden p-5 shadow-xl flex flex-col h-[320px]">
+          <div className="flex items-center justify-between mb-6">
+            <div className="space-y-0.5">
+              <h3 className="text-[10px] font-bold text-gray-200 tracking-[0.1em] uppercase">
+                {node.name.replace('cloud-', 'NODE ')}
+              </h3>
+              <p className="text-[8px] text-gray-500 font-mono tracking-widest uppercase">TELEMETRY</p>
+            </div>
+            <div className="flex gap-4">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-0.5 rounded-full bg-cyan-500" />
+                <span className="text-[8px] font-bold text-gray-500 uppercase">Util</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-0.5 rounded-full bg-yellow-500" />
+                <span className="text-[8px] font-bold text-gray-500 uppercase">VRAM</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-0.5 rounded-full bg-rose-500" />
+                <span className="text-[8px] font-bold text-gray-500 uppercase">Temp</span>
               </div>
             </div>
           </div>
-          <div className="h-60 w-full">
+          <div className="flex-1 w-full min-h-0">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={node.data}>
-                <defs>
-                  <linearGradient id="colorUtil" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#06b6d4" stopOpacity={0.15} /><stop offset="95%" stopColor="#06b6d4" stopOpacity={0} /></linearGradient>
-                  <linearGradient id="colorVram" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#eab308" stopOpacity={0.15} /><stop offset="95%" stopColor="#eab308" stopOpacity={0} /></linearGradient>
-                  <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f43f5e" stopOpacity={0.15} /><stop offset="95%" stopColor="#f43f5e" stopOpacity={0} /></linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.2} />
+              <AreaChart data={node.data} margin={{ top: 5, right: 0, left: -30, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff" vertical={false} opacity={0.03} />
                 <XAxis
                   dataKey="timestamp"
                   tickFormatter={(ts) => formattedDate(ts, range)}
-                  stroke="#525252"
-                  tick={{ fontSize: 10, fill: "#737373" }}
+                  stroke="#4b5563"
+                  tick={{ fontSize: 8, fill: "#4b5563" }}
                   tickLine={false}
                   axisLine={false}
-                  minTickGap={range === 'today' ? 60 : 10}
+                  minTickGap={30}
                   ticks={ticks}
                   domain={domain as any}
                   type="number"
-                  interval={ticks ? 0 : 'preserveStartEnd'}
                 />
-                <YAxis yAxisId="left" stroke="#06b6d4" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} domain={[0, 100]} width={30} />
-                <YAxis yAxisId="right" orientation="right" stroke="#eab308" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={30} />
-                <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#1e293b", borderRadius: "6px", fontSize: "12px", color: "#f1f5f9" }} labelFormatter={(ts) => new Date(ts).toLocaleString()} />
-                <Area yAxisId="left" type="monotone" dataKey="utilization" stroke="#06b6d4" fill="url(#colorUtil)" strokeWidth={2} />
-                <Area yAxisId="right" type="monotone" dataKey="vram" stroke="#eab308" fill="url(#colorVram)" strokeWidth={2} />
-                <Area yAxisId="left" type="monotone" dataKey="temp" stroke="#f43f5e" fill="url(#colorTemp)" strokeWidth={1.5} strokeDasharray="3 3" />
+                <YAxis yAxisId="left" stroke="#4b5563" tick={{ fontSize: 8, fill: "#4b5563" }} axisLine={false} tickLine={false} domain={[0, 100]} width={30} />
+                <YAxis yAxisId="right" orientation="right" stroke="#4b5563" tick={{ fontSize: 8, fill: "#4b5563" }} axisLine={false} tickLine={false} width={30} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f1117",
+                    borderColor: "#1f2937",
+                    borderRadius: "6px",
+                    fontSize: "9px",
+                    color: "#f3f4f6"
+                  }}
+                  labelFormatter={(ts) => new Date(ts).toLocaleTimeString()}
+                  formatter={(value: number, name: string, props: any) => [
+                    <div className="flex items-center gap-2" key={name}>
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: props.color }}
+                      />
+                      <span className="text-gray-400 capitalize text-[9px] tracking-wider">{name}</span>
+                      <span className="font-bold text-white ml-auto">{value.toFixed(1)}{name === 'vram' ? 'GB' : name === 'temp' ? '°C' : '%'}</span>
+                    </div>,
+                    null
+                  ]}
+                />
+                <Area yAxisId="left" type="monotone" dataKey="utilization" name="utilization" stroke="#06b6d4" fill="transparent" strokeWidth={2.5} dot={false} />
+                <Area yAxisId="right" type="monotone" dataKey="vram" name="vram" stroke="#eab308" fill="transparent" strokeWidth={2.5} dot={false} />
+                <Area yAxisId="left" type="monotone" dataKey="temp" name="temperature" stroke="#f43f5e" fill="transparent" strokeWidth={1.5} strokeDasharray="3 3" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>

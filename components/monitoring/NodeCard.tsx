@@ -11,6 +11,7 @@ interface NodeCardProps {
 
 export default function NodeCard({ node }: NodeCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [expandedGPUs, setExpandedGPUs] = useState(false);
 
   return (
     <div className="bg-gray-900 shadow-lg rounded-lg p-4 border border-gray-700">
@@ -26,14 +27,37 @@ export default function NodeCard({ node }: NodeCardProps) {
       {/* --- System Metrics --- */}
       <div className="space-y-3 mb-4">
         <ProgressBar label="CPU" value={node.cpu_util_percent} />
-        <ProgressBar label="MEM" value={node.mem_util_percent} />
+        <ProgressBar
+          label="MEM"
+          value={node.mem_util_percent}
+          customValue={`${node.mem_util_percent.toFixed(0)}% (${((node.mem_util_percent / 100) * node.mem_total_gb).toFixed(1)} / ${node.mem_total_gb} GB)`}
+        />
       </div>
 
       {/* --- GPU Cards --- */}
-      <div className="space-y-2 mb-4">
-        {node.gpus.map((gpu) => (
-          <GpuCard key={gpu.gpu_id} gpu={gpu} />
-        ))}
+      {/* --- GPUs (Collapsible) --- */}
+      <div className="mb-4">
+        <button
+          onClick={() => setExpandedGPUs(!expandedGPUs)}
+          className="flex items-center justify-between w-full p-2 bg-gray-800 rounded-lg border border-gray-700 hover:bg-gray-750 transition mb-2"
+        >
+          <span className="text-sm font-semibold text-cyan-300">
+            GPUs ({node.gpus.length})
+          </span>
+          {expandedGPUs ? (
+            <HiChevronUp className="w-4 h-4 text-gray-400" />
+          ) : (
+            <HiChevronDown className="w-4 h-4 text-gray-400" />
+          )}
+        </button>
+
+        {expandedGPUs && (
+          <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+            {node.gpus.map((gpu) => (
+              <GpuCard key={gpu.gpu_id} gpu={gpu} />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* --- Active Users (Clickable) --- */}

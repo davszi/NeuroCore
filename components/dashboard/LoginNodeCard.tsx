@@ -24,7 +24,11 @@ export default function LoginNodeCard({ node }: LoginNodeCardProps) {
       {/* --- Util Bars --- */}
       <div className="space-y-3 mb-4">
         <ProgressBar label="CPU" value={node.cpu_util_percent} />
-        <ProgressBar label="MEM" value={node.mem_util_percent} />
+        <ProgressBar
+          label="MEM"
+          value={node.mem_util_percent}
+          customValue={`${node.mem_util_percent.toFixed(0)}% (${((node.mem_util_percent / 100) * node.mem_total_gb).toFixed(1)} / ${node.mem_total_gb} GB)`}
+        />
       </div>
 
       {/* --- Active User Count --- */}

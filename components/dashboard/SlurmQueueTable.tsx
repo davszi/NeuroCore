@@ -56,10 +56,18 @@ export default function SlurmQueueTable() {
                     {renderCell(partition.cpu_allocated)}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">
-                    {renderCell(partition.mem_free_gb)}
+                    {(() => {
+                      const total = (partition.mem_free_gb || 0) + (partition.mem_allocated_gb || 0);
+                      const percent = total > 0 ? ((partition.mem_free_gb / total) * 100).toFixed(1) : "0.0";
+                      return `${partition.mem_free_gb} GB (${percent}%)`;
+                    })()}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-200">
-                    {renderCell(partition.mem_allocated_gb)}
+                    {(() => {
+                      const total = (partition.mem_free_gb || 0) + (partition.mem_allocated_gb || 0);
+                      const percent = total > 0 ? ((partition.mem_allocated_gb / total) * 100).toFixed(1) : "0.0";
+                      return `${partition.mem_allocated_gb} GB (${percent}%)`;
+                    })()}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-green-400">
                     {renderCell(partition.gpu_free)}

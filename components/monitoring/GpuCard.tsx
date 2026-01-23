@@ -7,7 +7,7 @@ interface GpuCardProps {
 }
 
 export default function GpuCard({ gpu }: GpuCardProps) {
-  
+
   const memory_util_percent = (gpu.memory_total_mib > 0)
     ? (gpu.memory_used_mib / gpu.memory_total_mib) * 100
     : 0;
@@ -25,7 +25,11 @@ export default function GpuCard({ gpu }: GpuCardProps) {
 
       <div className="space-y-3">
         <ProgressBar label="GPU" value={gpu.utilization_percent} />
-        <ProgressBar label="VRAM" value={memory_util_percent} />
+        <ProgressBar
+          label="VRAM"
+          value={memory_util_percent}
+          customValue={`${memory_util_percent.toFixed(0)}% (${gpu.memory_used_mib} / ${gpu.memory_total_mib} MiB)`}
+        />
       </div>
     </div>
   );

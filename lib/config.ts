@@ -14,56 +14,56 @@ export const CLUSTER_NODES: SafeNodeConfig[] = [
     host: "cloud-243.rz.tu-clausthal.de",
     port: 22,
     hasGpu: true,
-    user: "mw86"
+    user: "pr35"
   },
   {
     name: "cloud-247",
     host: "cloud-247.rz.tu-clausthal.de",
     port: 22,
     hasGpu: true,
-    user: "mw86"
+    user: "pr35"
   },
   {
-    name: "cloud-244", 
+    name: "cloud-244",
     host: "cloud-244.rz.tu-clausthal.de",
     port: 22,
     hasGpu: false,
-    user: "mw86"
+    user: "pr35"
   },
   {
-    name: "cloud-248", 
+    name: "cloud-248",
     host: "cloud-248.rz.tu-clausthal.de",
     port: 22,
     hasGpu: false,
-    user: "mw86"
+    user: "pr35"
   },
   {
     name: "cloud-202",
     host: "cloud-202.rz.tu-clausthal.de",
     port: 22,
     hasGpu: true,
-    user: "mw86"
+    user: "pr35"
   },
   {
     name: "cloud-203",
     host: "cloud-203.rz.tu-clausthal.de",
     port: 22,
     hasGpu: true,
-    user: "mw86"
+    user: "pr35"
   },
   {
     name: "cloud-204",
     host: "cloud-204.rz.tu-clausthal.de",
     port: 22,
     hasGpu: true,
-    user: "mw86"
+    user: "pr35"
   },
   {
     name: "cloud-205",
     host: "cloud-205.rz.tu-clausthal.de",
     port: 22,
     hasGpu: true,
-    user: "mw86"
+    user: "pr35"
   },
 ];
 

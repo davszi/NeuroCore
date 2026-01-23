@@ -5,6 +5,7 @@ import { UserStorage } from '@/types/cluster';
 
 interface UserStorageTableProps {
   selectedVolume: string;
+  selectedNode: string;
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => {
@@ -12,13 +13,13 @@ const fetcher = (url: string) => fetch(url).then((res) => {
   return res.json();
 });
 
-export default function UserStorageTable({ selectedVolume }: UserStorageTableProps) {
+export default function UserStorageTable({ selectedVolume, selectedNode }: UserStorageTableProps) {
   const { data, error, isLoading } = useSWR<{ user_storage: UserStorage[] }>(
-    `/api/cluster-state?volume=${selectedVolume}`, 
+    `/api/cluster-state?volume=${selectedVolume}&node=${selectedNode}`,
     fetcher,
     {
       revalidateOnFocus: false,
-      dedupingInterval: 60000, 
+      dedupingInterval: 60000,
       errorRetryCount: 1,
     }
   );
@@ -48,7 +49,7 @@ export default function UserStorageTable({ selectedVolume }: UserStorageTablePro
   if (error) {
     return (
       <div className="p-4 bg-red-900/20 border border-red-900 rounded-lg text-red-200">
-        <p className="font-bold">Scan Failed</p> 
+        <p className="font-bold">Scan Failed</p>
         <p className="text-sm">The operation timed out or failed. Please try again later.</p>
       </div>
     );
@@ -67,7 +68,7 @@ export default function UserStorageTable({ selectedVolume }: UserStorageTablePro
   return (
     <div className="max-h-96 overflow-y-auto border border-gray-700 rounded-lg p-4 bg-gray-900 animate-in fade-in duration-300">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-white">User Storage: {selectedVolume}</h3>
+        <h3 className="text-lg font-semibold text-white">User Storage: {selectedVolume} on {selectedNode}</h3>
         <span className="text-xs text-gray-400">
           Total Users: {filteredUsers.length}
         </span>
