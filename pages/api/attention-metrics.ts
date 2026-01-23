@@ -1,8 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { runCommand } from '@/lib/ssh';
-import { CLUSTER_NODES } from '@/lib/config';
+import { CLUSTER_NODES, getInstallPath } from '@/lib/config';
 import { NodeConfig } from '@/types/cluster';
-import { getSettings } from '@/lib/settings-store';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { nodeName, runId } = req.query;
@@ -13,8 +12,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const targetNode = CLUSTER_NODES.find(n => n.name === nodeName) as unknown as NodeConfig;
     if (!targetNode) return res.status(404).json({ error: 'Node not found' });
 
-    const { remotePath } = getSettings();
+    const remotePath = getInstallPath(targetNode.name);
     const OUTPUTS_DIR = `${remotePath}/outputs`;
+    
 
     let runDir = "";
 

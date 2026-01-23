@@ -7,8 +7,7 @@ import { HiOutlineMenu, HiX } from 'react-icons/hi';
 const navItems = [
   { name: 'Resources', href: '/' },
   { name: 'Jobs', href: '/jobs' },
-  { name: 'Benchmarks', href: '/benchmarks' },
-  { name: 'Settings', href: '/settings' },
+  { name: 'Benchmarks', href: '/benchmarks' }
 ];
 
 // Helper function to check authentication

@@ -1,21 +1,22 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { Client } from 'ssh2';
+import { createConnection } from '@/lib/ssh';
+import { CLUSTER_NODES, getInstallPath } from '@/lib/config';
+import { NodeConfig } from '@/types/cluster';
 import fs from 'fs';
 import path from 'path';
-import { saveSettings } from '@/lib/settings-store';
 
 // --- GLOBAL LOG STORAGE ---
 declare global {
   var DEPLOY_LOGS: Record<string, { 
       status: string, 
       logs: string[], 
-      installPath?: string, 
-      creds?: { host: string, user: string, pass: string, path: string } 
+      installPath?: string,
+      nodeName?: string
   }>;
 }
 globalThis.DEPLOY_LOGS = globalThis.DEPLOY_LOGS || {};
 
-// --- HELPER: GENERATE LAUNCHER SCRIPT ---
+// --- HELPER: GENERATE ROBUST LAUNCHER SCRIPT ---
 const createStartScript = (remotePath: string) => `#!/bin/bash
 # Move to directory
 cd "${remotePath}"
@@ -23,13 +24,20 @@ cd "${remotePath}"
 # 1. Clean up old logs
 rm -f setup.log
 
-# 2. Windows line endings for the main script
+# 2. INTEGRITY CHECK (The V2 Fix)
+# If venv exists but isn't marked as complete, it's corrupted. Wipe it.
+if [ -d "venv" ] && [ ! -f "venv/.install_complete" ]; then
+    echo "[Launcher] ⚠️ Found incomplete venv from previous failed run. Wiping to force clean install..." >> setup.log
+    rm -rf venv
+fi
+
+# 3. Windows line endings fix
 if [ -f "setup_env.sh" ]; then
-    sed -i 's/\r$//' setup_env.sh
+    sed -i 's/\\r$//' setup_env.sh
     chmod +x setup_env.sh
 fi
 
-# 3. Create placeholder log
+# 4. Create placeholder log
 touch setup.log
 echo "[Launcher] Starting installation..." >> setup.log
 
@@ -47,7 +55,7 @@ if ! command -v virtualenv &> /dev/null; then
             return 0
         fi
 
-        # Fallback: Try creating without pip (fixes Debian/Ubuntu issue)
+        # Fallback: Try creating without pip
         echo "[Polyfill] Standard creation failed. Retrying with --without-pip..." >> setup.log
         if python3 -m venv "$VENV_DIR" --without-pip >> setup.log 2>&1; then
             echo "[Polyfill] Venv created. Bootstrapping pip manually..." >> setup.log
@@ -56,7 +64,6 @@ if ! command -v virtualenv &> /dev/null; then
             if command -v curl &> /dev/null; then
                 curl -fsS https://bootstrap.pypa.io/get-pip.py -o get-pip.py
             elif command -v wget &> /dev/null; then
-                # Changed -o (log) to -O (output file)
                 wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py
             else
                 echo "[Polyfill] Error: No curl or wget found to download pip." >> setup.log
@@ -83,83 +90,65 @@ if ! command -v virtualenv &> /dev/null; then
     export -f virtualenv
 fi
 
-# 4. Run python script in background
-setsid nohup bash setup_env.sh . >> setup.log 2>&1 < /dev/null &
+# 5. Run setup script in background
+# We chain '&& touch venv/.install_complete' so the marker is only created if setup SUCCEEDS.
+setsid nohup bash -c 'bash setup_env.sh . && touch venv/.install_complete' >> setup.log 2>&1 < /dev/null &
 
-# 5. Small delay
+# 6. Small delay
 sleep 2
 echo "Launcher finished."
 `;
 
-// --- HELPER: RECURSIVE FILE GETTER ---
-const getFiles = (dir: string, fileList: string[] = []) => {
-  if (!fs.existsSync(dir)) return [];
-  const files = fs.readdirSync(dir);
-  files.forEach((file) => {
-    const filePath = path.join(dir, file);
-    const stat = fs.statSync(filePath);
-
-    const IGNORED = [
-      'trash', 
-      '__pycache__', 
-      'venv',          
-      'node_modules',  
-      '.git',          
-      '.DS_Store',     
-      'outputs'        
-    ];
-
-    if (IGNORED.includes(file) || file.startsWith('.') || file.endsWith('.pyc')) return;
-    
-    if (stat.isDirectory()) {
-      getFiles(filePath, fileList);
-    } else {
-      fileList.push(filePath);
-    }
-  });
-  return fileList;
-};
-
-// --- API HANDLER ---
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
 
+  // 1. STATUS POLLING
   if (req.method === 'GET') {
     const { jobId } = req.query;
     if (!jobId || typeof jobId !== 'string') return res.status(400).json({ error: "No Job ID" });
+    
     const job = globalThis.DEPLOY_LOGS[jobId];
     if (!job) return res.status(404).json({ error: "Job not found" });
 
-    if (job.status === 'installing' && job.creds) {
+    // If installing, actively tail the logs
+    if (job.status === 'installing' && job.nodeName) {
        await checkRemoteLog(jobId, job);
     }
-    // Mask credentials before sending to frontend
-    const safeJob = { ...job, creds: undefined }; 
-    return res.status(200).json(safeJob);
+    
+    return res.status(200).json(job);
   }
 
+  // 2. START DEPLOYMENT
   if (req.method === 'POST') {
-    const { host, username, password, remotePath } = req.body;
-
-    saveSettings({ remotePath, host, user: username });
+    const { nodeName } = req.body;
     
+    if (!nodeName) return res.status(400).json({ error: "Missing nodeName" });
+
+    const targetNode = CLUSTER_NODES.find(n => n.name === nodeName) as unknown as NodeConfig;
+    if (!targetNode) return res.status(404).json({ error: "Node not found" });
+
+    const installPath = getInstallPath(nodeName); // Automated Path
     const jobId = `deploy_${Date.now()}`;
     const time = new Date().toLocaleTimeString();
     
     globalThis.DEPLOY_LOGS[jobId] = { 
         status: 'starting', 
-        logs: [`[${time}] Initializing deployment...`],
-        creds: { host, user: username, pass: password, path: remotePath }
+        logs: [`[${time}] Initializing deployment to ${nodeName}...`, `[Init] Target Path: ${installPath}`],
+        installPath,
+        nodeName: targetNode.name
     };
     
-    res.status(200).json({ jobId });
-    startBackgroundUpload(jobId, host, username, password, remotePath);
+    // dded success flag so UI knows it worked
+    res.status(200).json({ success: true, jobId, installPath });
+    
+    // Start Async Process
+    startBackgroundDeployment(jobId, targetNode, installPath);
     return;
   }
 }
 
 // --- BACKGROUND WORKER ---
-async function startBackgroundUpload(jobId: string, host: string, user: string, pass: string, remotePath: string) {
+async function startBackgroundDeployment(jobId: string, node: NodeConfig, remotePath: string) {
   const log = (msg: string) => {
     const time = new Date().toLocaleTimeString();
     if (globalThis.DEPLOY_LOGS[jobId]) globalThis.DEPLOY_LOGS[jobId].logs.push(`[${time}] ${msg}`);
@@ -172,138 +161,100 @@ async function startBackgroundUpload(jobId: string, host: string, user: string, 
       return;
   }
 
-  const conn = new Client();
+  let ssh;
+  try {
+    log(`Connecting to ${node.host}...`);
+    // Use shared SSH handler (Keys)
+    ssh = await createConnection(node, { readyTimeout: 20000 });
+    log('SSH Connected.');
 
-  conn.on('ready', () => {
-    log('SSH Connected. Checking remote directory...');
+    // 1. Create Directory
+    log(`Ensuring remote directory: ${remotePath}`);
+    await ssh.execCommand(`mkdir -p "${remotePath}"`);
 
-    const allFiles = getFiles(localBackendPath);
+    // 2. Upload Files (Recursive)
+    log("Starting file upload (this may take a moment)...");
     
-    // 1. Create Base Directory
-    conn.exec(`mkdir -p "${remotePath}"`, (err, stream) => {
-        if (err) { log(`Mkdir Error: ${err.message}`); return; }
-        stream.on('data', () => {}); 
-        stream.on('close', () => {
-            log("Directory ready. Starting SFTP upload...");
-            
-            conn.sftp((err, sftp) => {
-                if (err) { log(`SFTP Error: ${err.message}`); return; }
-
-                // 2. Upload Python Files
-                uploadFiles(sftp, allFiles, localBackendPath, remotePath, log, () => {
-                    
-                    // 3. UPLOAD THE LAUNCHER SCRIPT
-                    const startScriptContent = createStartScript(remotePath);
-                    const startScriptPath = path.join(remotePath, 'start.sh').split(path.sep).join('/');
-                    
-                    const writeStream = sftp.createWriteStream(startScriptPath, { mode: 0o755 });
-                    writeStream.end(startScriptContent);
-                    
-                    writeStream.on('close', () => {
-                         log("Launcher script uploaded.");
-                         triggerInstall(conn, remotePath, log, jobId);
-                    });
-                });
-            });
-        });
-    });
-
-  }).on('error', (err) => {
-      log(`Connection Error: ${err.message}`);
-      if(globalThis.DEPLOY_LOGS[jobId]) globalThis.DEPLOY_LOGS[jobId].status = 'error';
-  }).connect({ host, port: 22, username: user, password: pass });
-}
-
-// --- HELPER: SFTP UPLOAD ---
-function uploadFiles(sftp: any, files: string[], localRoot: string, remoteRoot: string, log: any, onDone: () => void) {
-    let i = 0;
-    const total = files.length;
-    const uploadNext = () => {
-        if (i >= total) {
-            log("All files uploaded successfully.");
-            onDone();
-            return;
+    // node-ssh putDirectory is robust equivalent to recursive SFTP
+    await ssh.putDirectory(localBackendPath, remotePath, {
+        recursive: true,
+        concurrency: 10,
+        validate: (itemPath) => {
+            const base = path.basename(itemPath);
+            return !base.startsWith('.') && base !== 'node_modules' && base !== 'venv' && base !== '__pycache__' && base !== 'outputs';
+        },
+        tick: (localPath, remotePath, error) => {
+            if (error) log(`Upload Warning: ${path.basename(localPath)} - ${error.message}`);
         }
-        const localFile = files[i];
-        const relative = path.relative(localRoot, localFile);
-        const remoteFile = path.join(remoteRoot, relative).split(path.sep).join('/');
-        
-        sftp.mkdir(path.dirname(remoteFile), { attributes: {} }, () => {
-            sftp.fastPut(localFile, remoteFile, (err: any) => {
-                // Ignore transient errors, assume directory might exist
-                if (err && i % 5 === 0) log(`Upload Info: ${relative}`);
-                if (i % Math.ceil(total / 5) === 0) log(`Progress: ${Math.round((i / total) * 100)}%`);
-                i++;
-                uploadNext();
-            });
-        });
-    };
-    uploadNext();
-}
-
-// --- HELPER: TRIGGER INSTALL ---
-function triggerInstall(conn: Client, remotePath: string, log: any, jobId: string) {
-    log("Finalizing setup...");
-    // Quoted path for safety
-    const cmd = `bash "${remotePath}/start.sh"`;
-
-    conn.exec(cmd, (err, stream) => {
-        if (err) { log(`Launch Error: ${err.message}`); return; }
-        stream.on('data', (d: any) => {}); 
-        stream.on('close', () => {
-             log("✅ Launcher finished. Switching to log monitor...");
-             if (globalThis.DEPLOY_LOGS[jobId]) {
-                 globalThis.DEPLOY_LOGS[jobId].status = 'installing';
-             }
-             conn.end();
-        });
     });
+    log("Files uploaded successfully.");
+
+    // 3. Upload Launcher Script (The Polyfill + Integrity Check)
+    const startScriptContent = createStartScript(remotePath);
+    const startScriptPath = `${remotePath}/start.sh`;
+    
+    // Write script to remote
+    await ssh.execCommand(`cat << 'EOF' > "${startScriptPath}"\n${startScriptContent}\nEOF`);
+    await ssh.execCommand(`chmod +x "${startScriptPath}"`);
+    log("Launcher script uploaded.");
+
+    // 4. Trigger Install
+    log("Finalizing setup...");
+    const result = await ssh.execCommand(`bash "${startScriptPath}"`);
+    
+    if (result.code !== 0) {
+        throw new Error(`Launcher failed: ${result.stderr}`);
+    }
+
+    log("✅ Launcher finished. Switching to log monitor...");
+    if (globalThis.DEPLOY_LOGS[jobId]) {
+        globalThis.DEPLOY_LOGS[jobId].status = 'installing';
+    }
+
+  } catch (error: any) {
+    log(`Critical Error: ${error.message}`);
+    if(globalThis.DEPLOY_LOGS[jobId]) globalThis.DEPLOY_LOGS[jobId].status = 'error';
+  } finally {
+    if (ssh) ssh.dispose();
+  }
 }
 
 // --- HELPER: CHECK REMOTE LOGS ---
 async function checkRemoteLog(jobId: string, job: any) {
-    return new Promise<void>((resolve) => {
-        const conn = new Client();
-        conn.on('ready', () => {
-            // Quoted path to handle spaces in directory names
-            conn.exec(`tail -n 20 "${job.creds.path}/setup.log"`, (err, stream) => {
-                if (err) { conn.end(); resolve(); return; }
-                let data = '';
-                stream.on('data', (chunk: any) => { data += chunk; });
-                stream.on('close', () => {
-                    if (data) {
-                        const lines = data.split('\n').filter(l => l.trim() !== '');
-                        lines.forEach(line => {
-                             if (!job.logs.some((existing: string) => existing.includes(line))) {
-                                 job.logs.push(`[Remote] ${line}`);
-                             }
-                        });
-                        
-                        // Success Condition
-                        if (data.includes("SETUP_COMPLETE_SIGNAL")) {
-                            job.status = 'success';
-                            job.installPath = job.creds.path;
-                            delete job.creds; // Secure: Remove password from memory
-                            job.logs.push("✅ Installation verified complete.");
-                        }
+    const nodeName = job.nodeName;
+    const targetNode = CLUSTER_NODES.find(n => n.name === nodeName) as unknown as NodeConfig;
+    if (!targetNode) return;
 
-                        // Error Condition
-                        if (data.includes("CRITICAL ERROR") || data.includes("command not found") || data.includes("failed")) {
-                            job.status = 'error';
-                            job.logs.push("❌ Deployment Failed. Check logs above.");
-                            delete job.creds; // Secure: Remove password from memory
-                        }
-                    }
-                    conn.end();
-                    resolve();
-                });
+    let ssh;
+    try {
+        ssh = await createConnection(targetNode, { readyTimeout: 5000 });
+        
+        // Read the setup log created by the robust launcher
+        const result = await ssh.execCommand(`tail -n 20 "${job.installPath}/setup.log"`);
+        
+        if (result.stdout) {
+            const lines = result.stdout.split('\n').filter(l => l.trim() !== '');
+            lines.forEach(line => {
+                if (!job.logs.some((existing: string) => existing.includes(line))) {
+                    job.logs.push(`[Remote] ${line}`);
+                }
             });
-        }).on('error', () => { resolve(); }) 
-          .connect({ 
-             host: job.creds.host, 
-             port: 22, 
-             username: job.creds.user, 
-             password: job.creds.pass 
-          });
-    });
+
+            // Success Condition
+            if (result.stdout.includes("SETUP_COMPLETE_SIGNAL")) {
+                job.status = 'success';
+                job.logs.push("✅ Installation verified complete.");
+            }
+
+            // Error Condition
+            if (result.stdout.includes("CRITICAL ERROR") || result.stdout.includes("command not found") || result.stdout.includes("failed")) {
+                job.status = 'error';
+                job.logs.push("❌ Deployment Failed. Check logs above.");
+            }
+        }
+    } catch (e) {
+        // Connection error during polling is expected occasionally
+    } finally {
+        if (ssh) ssh.dispose();
+    }
 }

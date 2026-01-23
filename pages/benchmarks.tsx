@@ -12,6 +12,8 @@ import PerformanceBenchmarkModal from "@/components/benchmarks/performance/Perfo
 import BenchmarkResultsView, { BenchmarkResult } from "@/components/benchmarks/performance/BenchmarkResultsView";
 import { MonthlyBenchmarkData } from "@/components/benchmarks/performance/MonthlyComparisonChart";
 import MLBenchmarkTab from "@/components/benchmarks/ml-benchmark-tab/MLBenchmarkTab";
+import { HiCog } from "react-icons/hi";
+import DeployModal from "@/components/benchmarks/DeployModal";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -104,6 +106,7 @@ export default function BenchmarksPage() {
   const [currentBenchmarkId, setCurrentBenchmarkId] = useState<string | null>(null);
   const [benchmarkResults, setBenchmarkResults] = useState<BenchmarkResult[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyBenchmarkData[]>([]);
+  const [isDeployOpen, setIsDeployOpen] = useState(false);
 
   // Data Fetching
   const { data: snapshots = [], isLoading: isHistoryLoading } = useSWR<ClusterState[]>("/api/node-history", fetcher, { refreshInterval: 60000 });
@@ -243,6 +246,13 @@ export default function BenchmarksPage() {
         <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
 
           <div className="flex items-center gap-3">
+            <button 
+                onClick={() => setIsDeployOpen(true)}
+                className="p-2 bg-gray-800 hover:bg-gray-700 rounded-full text-gray-400 hover:text-cyan-400 transition-colors border border-gray-700"
+                title="Deploy Backend Engine"
+            >
+                <HiCog className="w-6 h-6" />
+            </button>
             <button
               onClick={handleLogout}
               className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 rounded-md transition-colors border border-gray-700"
@@ -371,6 +381,11 @@ export default function BenchmarksPage() {
         onStart={handleStartPerformanceBenchmark}
         isLoading={isPerfBenchmarkStarting}
         error={perfBenchmarkError}
+      />
+
+      <DeployModal 
+        isOpen={isDeployOpen} 
+        onClose={() => setIsDeployOpen(false)} 
       />
     </div>
   );

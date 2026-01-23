@@ -1,7 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import useSWR from 'swr';
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });

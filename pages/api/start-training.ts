@@ -1,9 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import { createConnection } from '@/lib/ssh';
-import { CLUSTER_NODES } from '@/lib/config';
+import { CLUSTER_NODES, getInstallPath } from '@/lib/config';
 import { NodeConfig } from '@/types/cluster';
-import { getSettings } from '@/lib/settings-store';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -23,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Generate Run ID
   const ts = Math.floor(Date.now() / 1000);
   const runId = `run_${ts}`;
-  const { remotePath } = getSettings();
+  const remotePath = getInstallPath(targetNode.name);
 
   const APP_ROOT = remotePath;
   const CACHE_ROOT = `${APP_ROOT}/caches`;
