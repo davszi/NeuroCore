@@ -5,6 +5,7 @@ import { fetchNodeHardware, fetchJobsFromNode, fetchClusterStats } from './fetch
 import { createConnection } from './ssh';
 import { NodeSSH } from 'node-ssh';
 import { CLUSTER_NODES, GPU_INVENTORY } from './config';
+import { syncNodeBenchmarks } from './ml-sync';
 
 // 1. Initialize Global Cache
 globalThis.CLUSTER_CACHE = globalThis.CLUSTER_CACHE || {
@@ -29,6 +30,8 @@ declare global {
 }
 
 let isRunning = false;
+let syncCounter = 0;
+const SYNC_INTERVAL_CYCLES = 6;
 
 // 2. Helper: Create "Ghost" Node for Offline Status
 function getMockNode(node: NodeConfig) {
@@ -82,7 +85,7 @@ export function startBackgroundServices() {
   loadLastSnapshot();
   
   poll();
-  setInterval(poll, 1 * 60 * 500); // Poll every 1 minute
+  setInterval(poll, 1 * 60 * 500); // Poll 30 seconds
   setInterval(saveHistory, 5 * 60 * 1000); // Save every 5 minutes
 }
 
@@ -199,6 +202,22 @@ async function poll() {
     globalThis.CLUSTER_CACHE.jobs = allJobs;
     globalThis.CLUSTER_CACHE.lastUpdated = Date.now();
     globalThis.CLUSTER_CACHE.isReady = true;
+
+    syncCounter++;
+    if (syncCounter >= SYNC_INTERVAL_CYCLES) {
+        syncCounter = 0;
+        console.log(`[Worker] 🔄 Starting Background Benchmark Sync...`);
+        
+        // Fire and forget (Non-blocking Promise.all)
+        // This ensures the UI updates instantly while files download in background
+        Promise.all(
+            gpuNodes.map(node => syncNodeBenchmarks(node.node_name))
+        ).then(() => {
+            console.log(`[Worker] ✅ Benchmark Sync Finished`);
+        }).catch(err => {
+            console.error(`[Worker] Benchmark Sync Error:`, err);
+        });
+    }
 
     console.log(`[Worker] ✅ Update Complete. GPUs: ${gpuNodes.length}, Storage: ${storageVolumes.length}`);
 

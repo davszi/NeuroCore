@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { runCommand } from '@/lib/ssh';
 import { CLUSTER_NODES, getInstallPath } from '@/lib/config';
 import { NodeConfig } from '@/types/cluster';
+import { syncNodeBenchmarks } from '@/lib/ml-sync'; // <--- 1. Import Sync Logic
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -19,16 +20,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 1. Try to read the status file if runId is provided
     if (runId) {
-      const APP_ROOT = getInstallPath(targetNode.name);;
+      const APP_ROOT = getInstallPath(targetNode.name);
       const statusFile = `${APP_ROOT}/logs/${runId}_status.json`;
 
       try {
         const fileContent = await runCommand(targetNode, `cat ${statusFile}`);
         const statusData = JSON.parse(fileContent.trim());
 
-        // Explicit Success/Fail -> Stopped
-        if (statusData.status === 'success') return res.status(200).json({ status: 'success', isRunning: false });
-        if (statusData.status === 'failed') return res.status(200).json({ status: 'failed', isRunning: false });
+        // --- 2. NEW: TRIGGER SYNC ON SUCCESS ---
+        if (statusData.status === 'success') {
+            console.log(`[API] Run ${runId} success detected. Triggering instant sync...`);
+            syncNodeBenchmarks(nodeName).catch(e => console.error("[API] Instant sync trigger failed:", e));
+            return res.status(200).json({ status: 'success', isRunning: false });
+        }
+        
+        if (statusData.status === 'failed') {
+            return res.status(200).json({ status: 'failed', isRunning: false });
+        }
         
       } catch (e) {
         // File doesn't exist yet (startup race condition) or other error.

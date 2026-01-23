@@ -33,7 +33,7 @@ const VALID_CONFIGS: Record<string, {
   }
 };
 
-const ATTENTION_OPTIONS = ["flash", "sdpa", "eager"];
+const ATTENTION_OPTIONS = ["flash", "sdpa", "sequential"];
 
 interface Props {
   isOpen: boolean;
@@ -55,7 +55,7 @@ export default function NewRunModal({ isOpen, onClose, onStart, isLoading }: Pro
   const [attention, setAttention] = useState("flash");
   
   // Hyperparameters
-  const [epochs, setEpochs] = useState(5); 
+  const [steps, setSteps] = useState(100); 
   const [batchSize, setBatchSize] = useState(32);
   const [lr, setLr] = useState(5e-5);
   
@@ -91,7 +91,7 @@ export default function NewRunModal({ isOpen, onClose, onStart, isLoading }: Pro
       model,
       dataset,
       attention,
-      epochs, 
+      steps, 
       batch_size: batchSize,
       learning_rate: lr,
       sequence_length: seqLength 
@@ -199,16 +199,16 @@ export default function NewRunModal({ isOpen, onClose, onStart, isLoading }: Pro
             </label>
           </div>
 
-          {/* Hyperparameters - UPDATED */}
+          {/* Hyperparameters */}
           <div className="grid grid-cols-3 gap-4">
             <label>
-              <span className="text-gray-400 text-sm font-semibold">Epochs (Duration)</span>
+              <span className="text-gray-400 text-sm font-semibold">Training Steps</span>
               <input 
                 type="number" 
                 className="w-full mt-1 bg-gray-800 border border-gray-700 rounded p-2 text-white focus:border-cyan-500 outline-none" 
-                value={epochs} 
-                onChange={e => setEpochs(parseInt(e.target.value))} 
-                min={1}
+                value={steps} 
+                onChange={e => setSteps(parseInt(e.target.value))} 
+                min={10}
               />
             </label>
             <label>
@@ -268,7 +268,6 @@ export default function NewRunModal({ isOpen, onClose, onStart, isLoading }: Pro
           </button>
           <button 
             onClick={handleStart} 
-            // Disable start button if sequence length is invalid
             disabled={isLoading || !selectedNode || seqLength > currentConfig.max_seq}
             className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded flex items-center gap-2 transition-colors shadow-lg shadow-cyan-900/20"
           >

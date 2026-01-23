@@ -29,8 +29,7 @@ export async function createConnection(node: Partial<NodeConfig>, options?: Conn
     username: username,
     readyTimeout: options?.readyTimeout || 25000,
     tryKeyboard: true,
-    agent: false, // Explicitly false to disable agent
-    // Setup handling for keyboard-interactive (some servers demand this instead of password)
+    agent: false,
     onKeyboardInteractive: (name: string, instructions: string, instructionsLang: string, prompts: any[], finish: Function) => {
       if (prompts.length > 0 && password) {
         finish(prompts.map((_: any) => password));
@@ -43,11 +42,12 @@ export async function createConnection(node: Partial<NodeConfig>, options?: Conn
       serverHostKey: ['ssh-ed25519', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521', 'rsa-sha2-512', 'rsa-sha2-256', 'ssh-rsa'],
       cipher: ['chacha20-poly1305@openssh.com', 'aes256-gcm@openssh.com', 'aes128-gcm@openssh.com', 'aes256-ctr', 'aes192-ctr', 'aes128-ctr'],
       hmac: ['hmac-sha2-256-etm@openssh.com', 'hmac-sha2-512-etm@openssh.com', 'hmac-sha2-256', 'hmac-sha2-512'],
-      kex: ['curve25519-sha256', 'curve25519-sha256@libssh.org', 'ecdh-sha2-nistp256', 'ecdh-sha2-nistp384', 'ecdh-sha2-nistp521', 'diffie-hellman-group-exchange-sha256', 'diffie-hellman-group14-sha256', 'diffie-hellman-group14-sha1']
+      kex: ['curve25519-sha256', 'curve25519-sha256@libssh.org', 'ecdh-sha2-nistp256', 'ecdh-sha2-nistp384',
+        'ecdh-sha2-nistp521', 'diffie-hellman-group-exchange-sha256', 'diffie-hellman-group14-sha256', 'diffie-hellman-group14-sha1']
     }
   };
 
-  console.log(`[SSH Debug] Connecting to ${node.name} as ${username}. Has Password: ${!!password}, Has Key: ${!!keyOrPath}`);
+  // console.log(`[SSH Debug] Connecting to ${node.name} as ${username}. Has Password: ${!!password}, Has Key: ${!!keyOrPath}`);
 
   if (password) sshConfig.password = password;
 
@@ -74,7 +74,7 @@ export async function createConnection(node: Partial<NodeConfig>, options?: Conn
       return ssh;
     } catch (error: any) {
       lastError = error;
-      console.warn(`[SSH] Connection attempt ${attempts}/${maxAttempts} failed for ${node.name}: ${error.message}`);
+      // console.warn(`[SSH] Connection attempt ${attempts}/${maxAttempts} failed for ${node.name}: ${error.message}`);
 
       // If error is about auth failure, it might be rate limiting. Wait a bit.
       if (attempts < maxAttempts) {
@@ -85,7 +85,7 @@ export async function createConnection(node: Partial<NodeConfig>, options?: Conn
   }
 
   ssh.dispose();
-  console.error(`[SSH] Connection Failed ${node.name || 'Unknown'} after ${maxAttempts} attempts: ${lastError?.message}`);
+  // console.error(`[SSH] Connection Failed ${node.name || 'Unknown'} after ${maxAttempts} attempts: ${lastError?.message}`);
   throw lastError;
 }
 
@@ -105,7 +105,7 @@ export async function runCommand(
     const result = await withTimeout(ssh.execCommand(command), timeoutMs);
 
     if (result.stderr && result.code !== 0) {
-      console.warn(`[SSH] ${node.name} (Code ${result.code}): ${result.stderr.slice(0, 100)}...`);
+      // console.warn(`[SSH] ${node.name} (Code ${result.code}): ${result.stderr.slice(0, 100)}...`);
     }
 
     return result.stdout;

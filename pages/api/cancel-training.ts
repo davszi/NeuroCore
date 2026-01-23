@@ -28,7 +28,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const status = await runCommand(targetNode, checkCmd);
 
     if (status.trim() !== 'exists') {
-        return res.status(200).json({ error: "Process already finished or not found" });
+        console.log(`[API] PID ${pid} not found. Assuming already stopped.`);
+        return res.status(200).json({ success: true, message: "Process already finished" });
     }
 
     console.log(`💀 [API] Terminating process tree for PID ${pid}...`);

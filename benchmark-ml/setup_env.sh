@@ -1,37 +1,3 @@
-# #!/bin/bash
-# # Usage: ./setup_env.sh <install_dir>
-
-# INSTALL_DIR=$1
-# cd "$INSTALL_DIR"
-
-# # Redirect all output to a log file we can read later
-# exec > >(tee -a setup.log) 2>&1
-
-# echo "[Setup] Starting installation in $INSTALL_DIR..."
-# echo "[Setup] Creating Virtual Environment..."
-# if [ ! -d "venv" ]; then
-#     python3 -m venv venv
-# fi
-
-# echo "[Setup] Activating Venv..."
-# source venv/bin/activate
-
-# echo "[Setup] Upgrading pip..."
-# pip install --upgrade pip
-
-# echo "[Setup] Installing Dependencies (This takes time)..."
-# pip install -r requirements.txt
-
-# # --- THE MAGIC SIGNAL ---
-# echo "SETUP_COMPLETE_SIGNAL"
-
-
-
-
-# New Updated Script Below:
-#!/bin/bash
-# Usage: ./setup_env.sh <install_dir>
-
 INSTALL_DIR=$1
 cd "$INSTALL_DIR"
 
@@ -46,7 +12,7 @@ log() {
 log "--- NEW DEPLOYMENT STARTED ---"
 log "Working directory: $(pwd)"
 
-# 2. Robust Virtual Environment Creation (The "No-Sudo" Fix)
+# 2. Robust Virtual Environment
 if [ ! -d "venv" ]; then
     log "Creating Virtual Environment..."
     

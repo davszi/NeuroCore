@@ -7,10 +7,8 @@ from typing import Optional, Dict, Any
 import psutil
 import torch
 
-
 def _ensure_dir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
-
 
 def monitor_run(
     config: Dict[str, Any],
@@ -20,13 +18,18 @@ def monitor_run(
     output_dir: str
 ) -> Dict[str, Any]:
     """
-    Log final metrics pentru un run (după train + eval).
+    Log final metrics for a run.
+    CRITICAL FOR DASHBOARD: Writes directly to output_dir, no subfolders.
     """
     process = psutil.Process(os.getpid())
     cpu_usage = process.cpu_percent()
     ram_usage = process.memory_info().rss / (1024 ** 3)
     gpu_mem = torch.cuda.memory_allocated() / (1024 ** 3) if torch.cuda.is_available() else 0
-    disk_used = shutil.disk_usage("/").used / (1024 ** 3)
+    
+    try:
+        disk_used = shutil.disk_usage("/").used / (1024 ** 3)
+    except:
+        disk_used = 0
 
     record = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -41,14 +44,19 @@ def monitor_run(
     }
 
     _ensure_dir(output_dir)
+    
+    # Write flat file for Dashboard discovery
     path = os.path.join(output_dir, "run_metrics.jsonl")
-    with open(path, "a") as f:
-        f.write(json.dumps(record) + "\n")
-        f.flush()
-        os.fsync(f.fileno())
+    
+    try:
+        with open(path, "a") as f:
+            f.write(json.dumps(record) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        print(f"[monitor] Saved run metrics -> {path}")
+    except Exception as e:
+        print(f"[monitor] Failed to save metrics: {e}")
 
-
-    print(f"[monitor] Saved run metrics → {path}")
     return record
 
 
@@ -61,7 +69,7 @@ def monitor_step(
     note: str = ""
 ) -> Dict[str, Any]:
     """
-    Log per-step metrics (chemat de callback-ul HF Trainer).
+    Log per-step metrics.
     """
     process = psutil.Process(os.getpid())
     cpu_usage = process.cpu_percent()
@@ -81,12 +89,14 @@ def monitor_step(
     }
 
     _ensure_dir(output_dir)
+    
     path = os.path.join(output_dir, "step_metrics.jsonl")
-    with open(path, "a") as f:
-        f.write(json.dumps(record) + "\n")
-        f.flush()
-        os.fsync(f.fileno())
+    try:
+        with open(path, "a") as f:
+            f.write(json.dumps(record) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+    except Exception as e:
+        pass # Don't crash training for a logging error
 
-
-    print(f"[monitor] Logged step {step} → {path}")
     return record

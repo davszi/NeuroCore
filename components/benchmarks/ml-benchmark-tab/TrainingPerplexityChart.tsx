@@ -1,16 +1,24 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-interface Props {
-  data: any[];
-  runs: RunMeta[];
-}
-
 interface RunMeta {
   id: string;
   display: string;
   color: string;
 }
+
+interface Props {
+  data: any[];
+  runs: RunMeta[];
+}
+
+// Helper: Switch to scientific notation for large values (>= 1000)
+// Example: 10000 -> 1.0e+4, but 12.5 -> 12.50
+const formatPerplexity = (val: number) => {
+    if (typeof val !== 'number') return val;
+    if (val >= 1000) return val.toExponential(1); 
+    return val.toFixed(2); 
+};
 
 export default function TrainingPerplexityChart({ data, runs }: Props) {
   return (
@@ -35,20 +43,20 @@ export default function TrainingPerplexityChart({ data, runs }: Props) {
                 tick={{ fontSize: 12 }}
                 label={{ value: 'Step', position: 'insideBottom', offset: -5, fill: '#6B7280', fontSize: 10 }}
               />
-              {/* Changed scale to "log" to handle massive initial perplexity values */}
               <YAxis 
                 stroke="#9CA3AF" 
                 scale="log"
                 domain={['auto', 'auto']}
                 tick={{ fontSize: 12 }}
-                width={50}
+                tickFormatter={formatPerplexity} // FIX: Apply formatting to axis
+                width={55} // Slightly wider to fit "1.0e+5"
                 allowDataOverflow
               />
               <Tooltip 
                 contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '4px' }}
                 labelStyle={{ color: '#9CA3AF', marginBottom: '0.25rem' }}
                 formatter={(value: number, name: string) => [
-                    typeof value === 'number' ? value.toFixed(2) : value, 
+                    formatPerplexity(value), // FIX: Apply formatting to tooltip
                     name
                 ]}
               />
