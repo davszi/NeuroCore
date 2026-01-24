@@ -7,6 +7,9 @@ import { NodeSSH } from 'node-ssh';
 import { CLUSTER_NODES, GPU_INVENTORY } from './config';
 import { syncNodeBenchmarks } from './ml-sync';
 
+// 15 * 60 * 1000 for production)
+const STALE_TIMEOUT_MS = 15 * 60 * 1000; 
+
 // 1. Initialize Global Cache
 globalThis.CLUSTER_CACHE = globalThis.CLUSTER_CACHE || {
   nodeState: null,
@@ -43,7 +46,8 @@ function getMockNode(node: NodeConfig) {
     mem_util_percent: 0,
     active_users: 0,
     active_usernames: [],
-    is_reachable: false, // Critical for UI styling
+    is_reachable: false,
+    last_contact: 0 
   };
 
   if (node.hasGpu) {
@@ -85,8 +89,8 @@ export function startBackgroundServices() {
   loadLastSnapshot();
   
   poll();
-  setInterval(poll, 1 * 60 * 500); // Poll 30 seconds
-  setInterval(saveHistory, 5 * 60 * 1000); // Save every 5 minutes
+  setInterval(poll, 30 * 1000); 
+  setInterval(saveHistory, 5 * 60 * 1000);
 }
 
 // 5. The Polling Logic
@@ -103,44 +107,63 @@ async function poll() {
     let allJobs: Job[] = [];
     let totalPower = 0;
 
-    // --- SEQUENTIAL LOOP (Simple & Stable) ---
+    // --- SEQUENTIAL LOOP ---
     for (const node of CLUSTER_NODES) {
       if (globalThis.isBenchmarkRunning) break;
 
       let ssh: NodeSSH | null = null;
       let nodeData: GpuNode | LoginNode | null = null;
       let isReachable = false;
-
+      const now = Date.now();
       const safeNode = node as unknown as NodeConfig;
 
       try {
         ssh = await createConnection(safeNode, { readyTimeout: 10000 });
         const result = await fetchNodeHardware(safeNode, GPU_INVENTORY, ssh);
+        
+        // 1. HARDWARE FETCH SUCCESS (Node is Online)
         if (result) {
           nodeData = result.data;
-          isReachable = true;
-          
-          // Only fetch jobs if connection is good
-          const jobs = await fetchJobsFromNode(safeNode, ssh);
-          allJobs.push(...jobs);
+          isReachable = true;          
+          (nodeData as any).last_contact = now; 
         }
+
+        const jobs = await fetchJobsFromNode(safeNode, ssh);
+        allJobs.push(...jobs);
 
       } catch (err) {
-
-        const cached = globalThis.CLUSTER_CACHE.nodeState;
-        if (cached) {
-          if (node.hasGpu) {
-             nodeData = cached.gpu_nodes.find(n => n.node_name === node.name) || null;
-          } else {
-             nodeData = cached.login_nodes.find(n => n.node_name === node.name) || null;
-          }
-        }
-
-        if (!nodeData) {
-          nodeData = getMockNode(safeNode);
-        }
         
-        isReachable = false;
+        if (!nodeData) {
+            // 1. Find cached version
+            const cachedState = globalThis.CLUSTER_CACHE.nodeState;
+            let cachedNode: any = null;
+            if (cachedState) {
+              if (node.hasGpu) {
+                 cachedNode = cachedState.gpu_nodes.find(n => n.node_name === node.name);
+              } else {
+                 cachedNode = cachedState.login_nodes.find(n => n.node_name === node.name);
+              }
+            }
+
+            // 2. Check if cached version is fresh enough
+            if (cachedNode && cachedNode.last_contact) {
+                const timeSince = now - cachedNode.last_contact;
+                
+                if (timeSince < STALE_TIMEOUT_MS) {
+                    nodeData = cachedNode;
+                    isReachable = true; 
+                } else {
+                    // STALE CACHE: Show Offline
+                    nodeData = cachedNode;
+                    isReachable = false;
+                    console.log(`[Worker] 🔴 Node ${node.name} stale (${Math.round(timeSince/1000)}s) -> Offline`);
+                }
+            } else {
+                // NO CACHE: Offline
+                nodeData = getMockNode(safeNode);
+                isReachable = false;
+            }
+        }
       } finally {
         if (ssh) ssh.dispose();
       }
@@ -151,23 +174,19 @@ async function poll() {
         if (node.hasGpu && 'gpus' in nodeData) {
            const gpuNode = nodeData as GpuNode;
            gpuNodes.push(gpuNode);
-           
-           if (gpuNode.gpus) gpuNode.gpus.forEach((g: Gpu) =>
-            totalPower += (g.power_draw_watts || 0));
+           if (gpuNode.gpus) gpuNode.gpus.forEach((g: Gpu) => totalPower += (g.power_draw_watts || 0));
         } else {
            loginNodes.push(nodeData as LoginNode);
         }
       }
     }
 
-    // --- FETCH CLUSTER STATS (Head Node Only) ---
+    // --- FETCH CLUSTER STATS ---
     let storageVolumes: any[] = [];
     let slurmQueue: any[] = [];
 
     if (CLUSTER_NODES.length > 0) {
-      
       let ssh: NodeSSH | null = null;
-
       try {
         const headNode = CLUSTER_NODES[0] as unknown as NodeConfig;
         ssh = await createConnection(headNode, { readyTimeout: 10000 });
@@ -203,13 +222,11 @@ async function poll() {
     globalThis.CLUSTER_CACHE.lastUpdated = Date.now();
     globalThis.CLUSTER_CACHE.isReady = true;
 
+    // --- BENCHMARK SYNC ---
     syncCounter++;
     if (syncCounter >= SYNC_INTERVAL_CYCLES) {
         syncCounter = 0;
         console.log(`[Worker] 🔄 Starting Background Benchmark Sync...`);
-        
-        // Fire and forget (Non-blocking Promise.all)
-        // This ensures the UI updates instantly while files download in background
         Promise.all(
             gpuNodes.map(node => syncNodeBenchmarks(node.node_name))
         ).then(() => {
@@ -219,7 +236,7 @@ async function poll() {
         });
     }
 
-    console.log(`[Worker] ✅ Update Complete. GPUs: ${gpuNodes.length}, Storage: ${storageVolumes.length}`);
+    console.log(`[Worker] ✅ Update Complete. GPUs: ${gpuNodes.length}`);
 
   } catch (e) {
     console.error("[Worker] Critical Poll Error:", e);
