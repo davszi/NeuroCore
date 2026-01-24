@@ -189,14 +189,21 @@ async function startBackgroundDeployment(jobId: string, node: NodeConfig, remote
     });
     log("Files uploaded successfully.");
 
-    // 3. Upload Launcher Script (The Polyfill + Integrity Check)
+    // 3. Upload Launcher Script (ROBUST BASE64 METHOD)
+    // -------------------------------------------------------------
+    // FIX: We encode the script to Base64 to bypass 'EOF' and shell parsing issues.
+    // -------------------------------------------------------------
     const startScriptContent = createStartScript(remotePath);
     const startScriptPath = `${remotePath}/start.sh`;
     
-    // Write script to remote
-    await ssh.execCommand(`cat << 'EOF' > "${startScriptPath}"\n${startScriptContent}\nEOF`);
+    // Encode content to Base64 in Node.js
+    const encodedScript = Buffer.from(startScriptContent).toString('base64');
+    
+    // Decode on remote server using standard 'base64 -d'
+    // This prevents any "line 82: EOF: command not found" errors
+    await ssh.execCommand(`echo "${encodedScript}" | base64 -d > "${startScriptPath}"`);
     await ssh.execCommand(`chmod +x "${startScriptPath}"`);
-    log("Launcher script uploaded.");
+    log("Launcher script uploaded (Base64 verified).");
 
     // 4. Trigger Install
     log("Finalizing setup...");
