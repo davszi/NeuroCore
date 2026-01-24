@@ -165,7 +165,7 @@ The node list is hardcoded in the configuration file to ensure stability.
   host: "192.168.1.50", // Hostname or IP
   port: 22,
   hasGpu: true,         // Set false for login/head nodes
-  user: "mw86"          // Specific user if different from global default
+  user: "user"          // Specific user if different from global default
 },
 
 ```
