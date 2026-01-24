@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  neurocore:
+    container_name: neurocore-dashboard
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      # Persist historical data (benchmarks, node snapshots)
+      - ./data:/app/data
+      
+      # Mount the ML backend 
+      - ./benchmark-ml:/app/benchmark-ml
+    environment:
+      # this ensure Next.js listens to all interfaces inside the container
+      - HOSTNAME=0.0.0.0
