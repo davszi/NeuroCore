@@ -1,0 +1,22 @@
+# optional: static inventory per node or default
+defaults:
+  gpu_name: "NVIDIA RTX 6000"
+  power_limit_watts: 300
+  cores_total: 16
+  mem_total_gb: 64
+nodes:
+  node1:
+    gpu_name: "NVIDIA RTX 6000"
+    power_limit_watts: 300
+    cores_total: 16
+    mem_total_gb: 64
+  node2:
+    gpu_name: "NVIDIA A100"
+    power_limit_watts: 300
+    cores_total: 16
+    mem_total_gb: 64
+  node3:
+    gpu_name: "NVIDIA H100"
+    power_limit_watts: 350
+    cores_total: 16
+    mem_total_gb: 64
