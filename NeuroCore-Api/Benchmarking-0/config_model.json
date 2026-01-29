@@ -1,0 +1,44 @@
+{
+    "general": {
+        "BF16_SUPPORTED": true,
+        "MODEL_NAME": "string",
+        "attn_implementation": "string",
+        "dataset_limit": 0
+    },
+    "dataset": {
+        "dataset_name": "squad",
+        "version":null,
+        "dataset_split": "train",
+        "MAX_INPUT_LEN": 512,
+        "MAX_TARGET_LEN": 128,
+        "padding_type": "max_length",
+        "train_test_split_ratio": 0.1,
+        "task": "string"
+    },
+    "training": {
+        "num_train_epochs": 0,
+        "per_device_train_batch_size": 4,
+        "gradient_accumulation_steps": 2,
+        "learning_rate": 5e-05,
+        "weight_decay": 0.01,
+        "logging_steps": 3,
+        "save_steps": 500,
+        "fp16": false,
+        "bf16": true,
+        "eval_strategy": "steps",
+        "report_to": "none",
+        "metrics_output": "monitor_results"
+    },
+    "paths": {
+        "CACHE_DIR": "hf_cache",
+        "output_dir": "string_squad_output",
+        "BASE_DIR":""
+    },
+    "hardware": {
+        "device": "cuda",
+        "gpu_name": "NVIDIA A100"
+    },
+    "xformers": {
+        "enable_memory_efficient_attention": true
+    }
+}

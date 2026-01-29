@@ -1,0 +1,47 @@
+{
+    "summarization": {
+        "description": "Text summarization task",
+        "input_template": "{article}",
+        "output_template": "{summary}",
+        "fields": [
+            "article",
+            "summary"
+        ]
+    },
+    "question_answering": {
+        "description": "Question answering based on context",
+        "input_template": "Context: {context}\n\nQuestion: {question}",
+        "output_template": "{answer}",
+        "fields": [
+            "context",
+            "question",
+            "answer"
+        ]
+    },
+    "dialogue_summarization": {
+        "description": "Dialogue/conversation summarization",
+        "input_template": "{dialogue}",
+        "output_template": "{summary}",
+        "fields": [
+            "dialogue",
+            "summary"
+        ]
+    },
+    "open_qa": {
+        "description": "Open-domain question answering",
+        "input_template": "Question: {question}",
+        "output_template": "{answer}",
+        "fields": [
+            "question",
+            "answer"
+        ]
+    },   "classification": {
+        "description": "Text classification task",
+        "input_template": "{text}",
+        "output_template": "{label}",
+        "fields": [
+            "text",
+            "label"
+        ]
+    }
+}

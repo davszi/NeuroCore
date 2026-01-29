@@ -1,0 +1,65 @@
+{
+    "cnn_dailymail": {
+        "name": "cnn_dailymail",
+        "version": "3.0.0",
+        "article_field": "article",
+        "summary_field": "highlights"
+    },
+    "xsum": {
+        "name": "xsum",
+        "version": null,
+        "article_field": "document",
+        "summary_field": "summary"
+    },
+    "squad": {
+        "name": "squad",
+        "version": null,
+        "context_field": "context",
+        "question_field": "question",
+        "answer_field": "answers"
+    },
+    "squad_v2": {
+        "name": "squad_v2",
+        "version": null,
+        "context_field": "context",
+        "question_field": "question",
+        "answer_field": "answers"
+    },
+    "billsum": {
+        "name": "billsum",
+        "version": null,
+        "article_field": "text",
+        "summary_field": "summary"
+    },
+    "samsum": {
+        "name": "samsum",
+        "version": null,
+        "article_field": "dialogue",
+        "summary_field": "summary"
+    },
+    "multi_news": {
+        "name": "multi_news",
+        "version": null,
+        "article_field": "document",
+        "summary_field": "summary"
+    },
+    "eli5": {
+        "name": "eli5",
+        "version": null,
+        "question_field": "title",
+        "answer_field": "answers"
+    },
+    "natural_questions": {
+        "name": "natural_questions",
+        "version": null,
+        "context_field": "document",
+        "question_field": "question",
+        "answer_field": "annotations"
+    },
+    "emotion": {
+        "name": "dair-ai/emotion",
+        "version": null,
+        "text_field": "text",
+        "label_field": "label"
+    }
+}

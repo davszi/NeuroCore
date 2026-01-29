@@ -1,0 +1,47 @@
+{
+    "general": {
+        "BF16_SUPPORTED": true,
+        "MODEL_NAME": "distilbert/distilgpt2",
+        "attn_implementation": "eager",
+        "dataset_limit": 1000
+    },
+    "dataset": {
+        "dataset_name": "billsum",
+        "version": null,
+        "dataset_split": "train",
+        "MAX_INPUT_LEN": 512,
+        "MAX_TARGET_LEN": 128,
+        "padding_type": "max_length",
+        "train_test_split_ratio": 0.1,
+        "task": "summarization",
+        "name": "billsum",
+        "article_field": "text",
+        "summary_field": "summary"
+    },
+    "training": {
+        "num_train_epochs": 1,
+        "per_device_train_batch_size": 4,
+        "gradient_accumulation_steps": 2,
+        "learning_rate": 5e-05,
+        "weight_decay": 0.01,
+        "logging_steps": 3,
+        "save_steps": 500,
+        "fp16": false,
+        "bf16": true,
+        "eval_strategy": "steps",
+        "report_to": "none",
+        "metrics_output": "monitor_results"
+    },
+    "paths": {
+        "CACHE_DIR": "hf_cache",
+        "output_dir": "distilgpt2_billsum_output",
+        "BASE_DIR": ""
+    },
+    "hardware": {
+        "device": "cuda",
+        "gpu_name": "NVIDIA A100"
+    },
+    "xformers": {
+        "enable_memory_efficient_attention": true
+    }
+}
