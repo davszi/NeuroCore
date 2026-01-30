@@ -35,7 +35,7 @@ export default function NodeCard({ node }: NodeCardProps) {
         <div className="text-right">
            <span className="flex items-center gap-1 text-xs font-mono text-cyan-400 bg-cyan-900/30 px-2 py-1 rounded border border-cyan-900">
               <HiChip className="w-3 h-3" />
-              {node.gpus.length} x {(node.gpus[0]?.gpu_name).substring(0, 16) +".."}
+              {node.gpus.length} x {node.gpus[0]?.gpu_name?.slice(0, 16) ?? "Unknown"}..
            </span>
            {isOffline && (
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-900/50 text-red-400 border border-red-900 uppercase tracking-wider">
