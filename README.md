@@ -2,7 +2,25 @@
 
 NeuroCore is a specialized cluster management and ML benchmarking dashboard. It orchestrates training jobs, monitors GPU/Node health via SSH, and provides real-time performance analytics.
 
+
+## System Architecture
+
+![NeuroCore Architecture](images/architecture.png)
+
+
+
 ## 🚀 Getting Started
+
+
+## 📊 Cluster Resource Overview
+
+Real-time monitoring of cluster partitions, compute nodes, GPU allocation, and storage usage.
+
+![Cluster Resources Dashboard](images/resources.png)
+
+
+---
+
 
 ### Prerequisites
 
@@ -38,7 +56,6 @@ NEXT_PUBLIC_API_URL=http://localhost:3000
 
 ```
 
----
 
 ## 🛠️ Local Development (Docker)
 
@@ -62,7 +79,18 @@ docker-compose down
 
 ```
 
----
+## 📈 ML Training Monitor
+
+Live tracking of training runs including:
+- Training loss  
+- Perplexity (log scale)  
+- Learning rate schedule  
+- GPU memory usage  
+- Evaluation metrics  
+
+![ML Training Monitor](images/training-monitor.png)
+
+
 
 ## 🌍 Production Deployment (VPS)
 
